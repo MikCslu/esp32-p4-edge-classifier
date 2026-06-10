@@ -10,3 +10,10 @@ dependencies.lock
 *~
 venv312/
 venv/
+
+# Component bloat: tests, examples, demos, docs
+components/**/test_apps/
+components/**/tests/
+components/**/examples/
+components/**/demos/
+components/**/docs/
