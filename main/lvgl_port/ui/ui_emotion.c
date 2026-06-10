@@ -136,6 +136,7 @@ static const emotion_scene_t s_class_scenes[] = {
     SZ(BACKGROUND, EYE_DIAMETER,EYE_DIAMETER,EYE_DIAMETER/2,0, 0x0c,0x17,0x28,0x7d,0xd3,0xfc,EMOTION_LISTENING,false,"Listening","Background"),
 };
 
+static bool _is_attention_class(int c){switch(c){case 0:case 1:case 2:case 3:case 6:case 7:case 8:return true;default:return false;}}
 static inline int32_t _c2i(lv_color_t c){return((int32_t)c.red<<16)|((int32_t)c.green<<8)|(int32_t)c.blue;}
 
 static void _ew(void*o,int32_t v){lv_obj_set_width((lv_obj_t*)o,v);}
@@ -339,7 +340,7 @@ void ui_emotion_set_by_audio(int class_id, float confidence) {
     if (class_id < 0 || class_id == AUDIO_CLASS_BACKGROUND || confidence < 0.1f) {
         _cancel_clear_timer(); _morph_to(&s_idle_scene); return;
     }
-    if (!app_audio_class_needs_attention(class_id)) { _push_toast(class_id, confidence); return; }
+    if (!_is_attention_class(class_id)) { _push_toast(class_id, confidence); return; }
     if (class_id >= 0 && class_id < (int)(sizeof(s_class_scenes)/sizeof(s_class_scenes[0]))) {
         _morph_to(&s_class_scenes[class_id]); _push_toast(class_id, confidence);
         if (s_class_scenes[class_id].urgent) _trigger_urgency_pulse();

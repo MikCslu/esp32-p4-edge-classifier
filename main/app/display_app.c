@@ -86,6 +86,7 @@ void display_app_init(void)
         return;
     }
 
+    /* Acquire DSI lock to prevent race with LVGL task on CPU1 */
     if (!mipi_dsi_lcd_lock(3000)) {
         ESP_LOGE(TAG, "Failed to acquire DSI lock for init");
         return;
