@@ -58,6 +58,10 @@ void ui_emotion_show_welcome_home(float confidence);
  */
 void ui_emotion_notify_system(bool is_error);
 
+/** Pause/resume camera preview when switching pages */
+void ui_emotion_pause_preview(void);
+void ui_emotion_resume_preview(void);
+
 #ifdef __cplusplus
 }
 #endif

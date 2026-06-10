@@ -1,15 +1,12 @@
 /*
- * ui_theme.h — Light/Dark theme tokens for all UI pages
+ * ui_theme.h — Light/Dark dual-theme system
  */
 #ifndef UI_THEME_H
 #define UI_THEME_H
 
 #include "lvgl.h"
 
-typedef enum {
-    UI_THEME_DARK = 0,
-    UI_THEME_LIGHT = 1
-} ui_theme_id_t;
+typedef enum { UI_THEME_DARK = 0, UI_THEME_LIGHT = 1 } ui_theme_id_t;
 
 typedef struct {
     lv_color_t bg;
@@ -42,9 +39,9 @@ static inline bool ui_theme_is_light(void) { return ui_theme_get_id() == UI_THEM
 /* Helpers */
 void ui_theme_apply_bg(lv_obj_t *obj);
 void ui_theme_apply_card(lv_obj_t *obj);
-void ui_theme_apply_card_btn(lv_obj_t *obj);
+lv_obj_t *ui_theme_create_toggle_btn(lv_obj_t *parent);  /* small btn, top-right */
 
-/* Per-page refresh hooks (called after theme toggle) */
+/* Per-page refresh hooks */
 extern void (*ui_main_theme_refresh)(void);
 extern void (*ui_log_theme_refresh)(void);
 extern void (*ui_settings_theme_refresh)(void);

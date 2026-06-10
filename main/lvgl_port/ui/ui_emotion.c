@@ -14,6 +14,9 @@
 
 static const char *TAG = "EMOTION";
 
+/* Forward decl */
+static void _emotion_theme_refresh(void);
+
 #define EMOTION_AUTO_CLEAR_MS    4500
 #define EMOTION_BLINK_MIN_MS     2400
 #define EMOTION_BLINK_MAX_MS     4200
@@ -321,6 +324,9 @@ void ui_emotion_create(lv_obj_t *parent) {
     _morph_to(&s_idle_scene);
     _reset_blink_timer();
     if (!s_camera_preview_timer) s_camera_preview_timer = lv_timer_create(_camera_preview_timer_cb, CAMERA_PREVIEW_PULL_MS, NULL);
+    s_camera_live_shown = false;
+    ui_theme_create_toggle_btn(parent);
+    ui_emotion_theme_refresh = _emotion_theme_refresh;
     ESP_LOGI(TAG, "Eyes engine created");
 }
 
@@ -360,4 +366,28 @@ void ui_emotion_show_welcome_home(float confidence) {
 void ui_emotion_notify_system(bool is_error) {
     if (is_error) { _morph_to(&s_sad_scene); _restart_clear_timer(); }
     else ui_emotion_set_by_audio(-1, 0.0f);
+}
+
+void ui_emotion_pause_preview(void) {
+    if (s_camera_preview_timer) { lv_timer_del(s_camera_preview_timer); s_camera_preview_timer = NULL; }
+}
+void ui_emotion_resume_preview(void) {
+    if (!s_camera_preview_timer && s_root)
+        s_camera_preview_timer = lv_timer_create(_camera_preview_timer_cb, CAMERA_PREVIEW_PULL_MS, NULL);
+}
+
+static void _emotion_theme_refresh(void) {
+    if (!s_root) return;
+    const ui_theme_t *t = ui_theme_get();
+    /* Toast backgrounds */
+    for (int i = 0; i < TOAST_COUNT; i++) {
+        if (s_toasts[i]) {
+            lv_obj_set_style_bg_color(s_toasts[i], t->card_bg, 0);
+            lv_obj_set_style_border_color(s_toasts[i], t->card_border, 0);
+            if (s_toast_labels[i]) lv_obj_set_style_text_color(s_toast_labels[i], t->text_primary, 0);
+        }
+    }
+    /* Camera panel */
+    if (s_camera_panel) { lv_obj_set_style_bg_color(s_camera_panel, t->card_bg, 0); lv_obj_set_style_border_color(s_camera_panel, t->card_border, 0); }
+    if (s_camera_status) lv_obj_set_style_text_color(s_camera_status, t->text_primary, 0);
 }

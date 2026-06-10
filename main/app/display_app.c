@@ -51,6 +51,11 @@ static void _switch_page_anim(int page_idx, lv_screen_load_anim_t anim)
     }
 
     display_app_refresh_page(page_idx);
+
+    /* Manage camera preview: only active on emotion page */
+    if (s_current_page == DISPLAY_PAGE_EMOTION) ui_emotion_pause_preview();
+    if (page_idx == DISPLAY_PAGE_EMOTION) ui_emotion_resume_preview();
+
     lv_scr_load_anim(s_pages[page_idx], anim, DISPLAY_SWITCH_ANIM_MS, 0, false);
     s_current_page = page_idx;
 
