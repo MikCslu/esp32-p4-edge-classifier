@@ -98,7 +98,6 @@ void ui_log_create(lv_obj_t *scr)
     int i;
 
     ui_theme_apply_bg(scr);
-    ui_theme_create_toggle_btn(scr);
 
     /* Title card */
     s_title_card = lv_obj_create(scr);

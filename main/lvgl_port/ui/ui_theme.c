@@ -103,7 +103,7 @@ lv_obj_t *ui_theme_create_toggle_btn(lv_obj_t *parent)
     lv_obj_set_style_border_width(btn, 1, 0);
     lv_obj_set_style_border_color(btn, s_theme.accent, 0);
     lv_obj_set_style_shadow_width(btn, 0, 0);
-    lv_obj_set_pos(btn, LV_HOR_RES - 78, 8);
+    lv_obj_set_pos(btn, LV_HOR_RES - 78, LV_VER_RES - 48);
     lv_obj_add_event_cb(btn, _toggle_btn_cb, LV_EVENT_CLICKED, NULL);
 
     lv_obj_t *lbl = lv_label_create(btn);
