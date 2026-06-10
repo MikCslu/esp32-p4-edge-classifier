@@ -18,6 +18,7 @@ idf_component_register(SRCS
     "lvgl_port/ui/ui_settings.c"
     "lvgl_port/ui/ui_notify.c"
     "lvgl_port/ui/ui_emotion.c"
+    "lvgl_port/ui/ui_theme.c"
     "hal/display_hal.c"
     "hal/audio_hal.c"
     "hal/mic_hal.c"

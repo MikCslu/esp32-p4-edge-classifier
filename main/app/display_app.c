@@ -2,6 +2,7 @@
 #include "hal/display_hal.h"
 #include "driver/display/dsi_lcd.h"
 #include "lvgl_port/ui/ui_emotion.h"
+#include "lvgl_port/ui/ui_theme.h"
 #include "esp_log.h"
 
 static const char *TAG = "DISPLAY_APP";
@@ -91,6 +92,8 @@ void display_app_init(void)
         ESP_LOGE(TAG, "Failed to acquire DSI lock for init");
         return;
     }
+
+    ui_theme_init();
 
     for (int i = 0; i < DISPLAY_PAGE_COUNT; i++) {
         s_pages[i] = lv_obj_create(NULL);

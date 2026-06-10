@@ -4,6 +4,7 @@
  */
 
 #include "lvgl_port/ui/ui_emotion.h"
+#include "lvgl_port/ui/ui_theme.h"
 #include "service/app_state.h"
 #include "service/camera_service.h"
 #include "esp_log.h"
