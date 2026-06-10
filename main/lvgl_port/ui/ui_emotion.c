@@ -74,7 +74,7 @@ static float s_last_confidence;
 static bool s_blinking;
 static int s_last_audio_class = -1;
 
-/* ─── Scenes ─── */
+/* ─── Scenes (dark) ─── */
 
 #define _C(r,g,b) LV_COLOR_MAKE(r,g,b)
 #define EYE(d,c) {d,d,d/2,0,_C c}
@@ -139,6 +139,73 @@ static const emotion_scene_t s_class_scenes[] = {
     SZ(TRAFFIC, EYE_DIAMETER-20,EYE_DIAMETER-20,(EYE_DIAMETER-20)/2,0, 0x10,0x18,0x22,0x60,0xa5,0xfa,EMOTION_LISTENING,false,"Traffic","Road ambience"),
     SZ(BACKGROUND, EYE_DIAMETER,EYE_DIAMETER,EYE_DIAMETER/2,0, 0x0c,0x17,0x28,0x7d,0xd3,0xfc,EMOTION_LISTENING,false,"Listening","Background"),
 };
+
+/* ─── Scenes (light mode) ─── */
+/* Brighter bg, darker eyes for contrast on white */
+
+static const emotion_scene_t s_idle_scene_light = {
+    .eye_l = EYE(EYE_DIAMETER, (0x4a,0x6e,0x9e)),
+    .eye_r = EYE(EYE_DIAMETER, (0x4a,0x6e,0x9e)),
+    .bg_color=_C(0xe8,0xee,0xf5), .accent=_C(0x29,0x73,0xb8),
+    .emotion=EMOTION_LISTENING, .urgent=false,
+    .title="Listening", .subtitle="Waiting for sound",
+};
+
+static const emotion_scene_t s_happy_scene_light = {
+    .eye_l={EYE_DIAMETER,EYE_DIAMETER/4,EYE_DIAMETER/8,-26,_C(0x72,0x48,0x86)},
+    .eye_r={EYE_DIAMETER,EYE_DIAMETER/4,EYE_DIAMETER/8,-26,_C(0x72,0x48,0x86)},
+    .bg_color=_C(0xf5,0xee,0xf8), .accent=_C(0xc4,0x4a,0x6e),
+    .emotion=EMOTION_HAPPY, .urgent=false,
+    .title="Happy", .subtitle="Recognized",
+};
+
+static const emotion_scene_t s_surprised_scene_light = {
+    .eye_l={EYE_DIAMETER+90,EYE_DIAMETER+90,(EYE_DIAMETER+90)/2,0,_C(0x8e,0x36,0x36)},
+    .eye_r={EYE_DIAMETER+90,EYE_DIAMETER+90,(EYE_DIAMETER+90)/2,0,_C(0x8e,0x36,0x36)},
+    .bg_color=_C(0xfc,0xf0,0xf0), .accent=_C(0xd0,0x30,0x3a),
+    .emotion=EMOTION_SURPRISED, .urgent=true,
+    .title="Alert", .subtitle="Attention needed",
+};
+
+static const emotion_scene_t s_sad_scene_light = {
+    .eye_l={EYE_DIAMETER*2/3,EYE_DIAMETER,EYE_DIAMETER/3,20,_C(0x72,0x44,0x52)},
+    .eye_r={EYE_DIAMETER*2/3,EYE_DIAMETER,EYE_DIAMETER/3,20,_C(0x72,0x44,0x52)},
+    .bg_color=_C(0xf8,0xf0,0xf2), .accent=_C(0xc4,0x4a,0x6e),
+    .emotion=EMOTION_SAD, .urgent=false,
+    .title="Concern", .subtitle="Need attention",
+};
+
+static const emotion_scene_t s_thinking_scene_light = {
+    .eye_l={EYE_DIAMETER,EYE_DIAMETER/6,EYE_DIAMETER/12,10,_C(0x58,0x62,0x6e)},
+    .eye_r={EYE_DIAMETER,EYE_DIAMETER/6,EYE_DIAMETER/12,10,_C(0x58,0x62,0x6e)},
+    .bg_color=_C(0xf0,0xf2,0xf4), .accent=_C(0x5a,0x6d,0x84),
+    .emotion=EMOTION_THINKING, .urgent=false,
+    .title="Thinking", .subtitle="Processing audio",
+};
+
+/* Light class scenes: lighter bg, darker eye pupil (0x70 gray) */
+#define SZL(id,ew,eh,er,ey,bgr,bgg,bgb,acr,acg,acb,em,ur,ti,su) \
+    [AUDIO_CLASS_##id] = { \
+        .eye_l={ew,eh,er,ey,_C(0x70,0x70,0x70)}, .eye_r={ew,eh,er,ey,_C(0x70,0x70,0x70)}, \
+        .bg_color=_C(bgr,bgg,bgb), .accent=_C(acr,acg,acb), \
+        .emotion=em, .urgent=ur, .title=ti, .subtitle=su, }
+
+static const emotion_scene_t s_class_scenes_light[] = {
+    SZL(ALARM, EYE_DIAMETER+90,EYE_DIAMETER+90,(EYE_DIAMETER+90)/2,0, 0xfc,0xf0,0xf0,0xd0,0x30,0x3a,EMOTION_SURPRISED,true,"Alarm","Siren detected"),
+    SZL(CAR_HORN, EYE_DIAMETER+70,EYE_DIAMETER+70,(EYE_DIAMETER+70)/2,0, 0xfc,0xf6,0xf0,0xd0,0x80,0x20,EMOTION_SURPRISED,true,"Car horn","Road noise"),
+    SZL(KNOCK, EYE_DIAMETER,EYE_DIAMETER/4,EYE_DIAMETER/8,-26, 0xf5,0xee,0xf8,0xc4,0x4a,0x6e,EMOTION_HAPPY,false,"Welcome","Someone is here"),
+    SZL(CLAPPING, EYE_DIAMETER,EYE_DIAMETER/4,EYE_DIAMETER/8,-26, 0xf2,0xf8,0xf0,0x22,0x8c,0x58,EMOTION_HAPPY,false,"Clapping","Applause"),
+    SZL(DOG_BARK, EYE_DIAMETER,EYE_DIAMETER/4,EYE_DIAMETER/8,-26, 0xf0,0xf8,0xf4,0x1a,0x8c,0x5a,EMOTION_HAPPY,false,"Dog bark","Dog sound"),
+    SZL(FOOTSTEPS, EYE_DIAMETER-20,EYE_DIAMETER-20,(EYE_DIAMETER-20)/2,0, 0xee,0xf4,0xfa,0x29,0x73,0xb8,EMOTION_LISTENING,false,"Footsteps","Movement nearby"),
+    SZL(GLASS_BREAK, EYE_DIAMETER+90,EYE_DIAMETER+90,(EYE_DIAMETER+90)/2,0, 0xf8,0xf0,0xfc,0x6e,0x30,0xc0,EMOTION_SURPRISED,true,"Glass break","Sharp impact"),
+    SZL(DOORBELL, EYE_DIAMETER,EYE_DIAMETER/4,EYE_DIAMETER/8,-26, 0xf0,0xf2,0xfc,0x29,0x73,0xb8,EMOTION_HAPPY,false,"Doorbell","Visitor"),
+    SZL(CRYING_BABY, EYE_DIAMETER*2/3,EYE_DIAMETER,EYE_DIAMETER/3,20, 0xfc,0xf0,0xf2,0xc4,0x4a,0x6e,EMOTION_SAD,true,"Baby crying","Needs attention"),
+    SZL(ENGINE, EYE_DIAMETER,EYE_DIAMETER/6,EYE_DIAMETER/12,10, 0xf2,0xf4,0xf6,0x5a,0x6d,0x84,EMOTION_THINKING,false,"Engine","Motor sound"),
+    SZL(TRAFFIC, EYE_DIAMETER-20,EYE_DIAMETER-20,(EYE_DIAMETER-20)/2,0, 0xee,0xf4,0xfa,0x29,0x73,0xb8,EMOTION_LISTENING,false,"Traffic","Road ambience"),
+    SZL(BACKGROUND, EYE_DIAMETER,EYE_DIAMETER,EYE_DIAMETER/2,0, 0xe8,0xee,0xf5,0x29,0x73,0xb8,EMOTION_LISTENING,false,"Listening","Background"),
+};
+#undef SZ
+#undef SZL
 
 static bool _is_attention_class(int c){switch(c){case 0:case 1:case 2:case 3:case 6:case 7:case 8:return true;default:return false;}}
 static inline int32_t _c2i(lv_color_t c){return((int32_t)c.red<<16)|((int32_t)c.green<<8)|(int32_t)c.blue;}
@@ -320,8 +387,9 @@ void ui_emotion_create(lv_obj_t *parent) {
     lv_obj_set_style_pad_hor(s_camera_status, 8, 0); lv_obj_set_style_pad_ver(s_camera_status, 4, 0);
     lv_obj_align(s_camera_status, LV_ALIGN_BOTTOM_RIGHT, -6, -6);
 
-    s_active_scene = &s_idle_scene; s_current = EMOTION_IDLE;
-    _morph_to(&s_idle_scene);
+    s_active_scene = ui_theme_is_light() ? &s_idle_scene_light : &s_idle_scene;
+    s_current = EMOTION_IDLE;
+    _morph_to(s_active_scene);
     _reset_blink_timer();
     if (!s_camera_preview_timer) s_camera_preview_timer = lv_timer_create(_camera_preview_timer_cb, CAMERA_PREVIEW_PULL_MS, NULL);
     s_camera_live_shown = false;
@@ -331,12 +399,22 @@ void ui_emotion_create(lv_obj_t *parent) {
 }
 
 void ui_emotion_set(emotion_t e) {
-    switch (e) {
-    case EMOTION_HAPPY: _morph_to(&s_happy_scene); break;
-    case EMOTION_SURPRISED: _morph_to(&s_surprised_scene); break;
-    case EMOTION_SAD: _morph_to(&s_sad_scene); break;
-    case EMOTION_THINKING: _morph_to(&s_thinking_scene); break;
-    default: _morph_to(&s_idle_scene); break;
+    if (ui_theme_is_light()) {
+        switch (e) {
+        case EMOTION_HAPPY: _morph_to(&s_happy_scene_light); break;
+        case EMOTION_SURPRISED: _morph_to(&s_surprised_scene_light); break;
+        case EMOTION_SAD: _morph_to(&s_sad_scene_light); break;
+        case EMOTION_THINKING: _morph_to(&s_thinking_scene_light); break;
+        default: _morph_to(&s_idle_scene_light); break;
+        }
+    } else {
+        switch (e) {
+        case EMOTION_HAPPY: _morph_to(&s_happy_scene); break;
+        case EMOTION_SURPRISED: _morph_to(&s_surprised_scene); break;
+        case EMOTION_SAD: _morph_to(&s_sad_scene); break;
+        case EMOTION_THINKING: _morph_to(&s_thinking_scene); break;
+        default: _morph_to(&s_idle_scene); break;
+        }
     }
 }
 
@@ -345,27 +423,36 @@ emotion_t ui_emotion_get_current(void) { return s_current; }
 void ui_emotion_set_by_audio(int class_id, float confidence) {
     s_last_audio_class = class_id; s_last_confidence = confidence;
     if (class_id < 0 || class_id == AUDIO_CLASS_BACKGROUND || confidence < 0.1f) {
-        _cancel_clear_timer(); _morph_to(&s_idle_scene); return;
+        _cancel_clear_timer();
+        _morph_to(ui_theme_is_light() ? &s_idle_scene_light : &s_idle_scene);
+        return;
     }
     if (!_is_attention_class(class_id)) { _push_toast(class_id, confidence); return; }
     if (class_id >= 0 && class_id < (int)(sizeof(s_class_scenes)/sizeof(s_class_scenes[0]))) {
-        _morph_to(&s_class_scenes[class_id]); _push_toast(class_id, confidence);
-        if (s_class_scenes[class_id].urgent) _trigger_urgency_pulse();
+        const emotion_scene_t *sc = ui_theme_is_light() ? &s_class_scenes_light[class_id] : &s_class_scenes[class_id];
+        _morph_to(sc); _push_toast(class_id, confidence);
+        if (sc->urgent) _trigger_urgency_pulse();
         _restart_clear_timer(); return;
     }
-    _morph_to(&s_thinking_scene); _restart_clear_timer();
+    _morph_to(ui_theme_is_light() ? &s_thinking_scene_light : &s_thinking_scene);
+    _restart_clear_timer();
 }
 
 void ui_emotion_show_welcome_home(float confidence) {
     s_last_audio_class = AUDIO_CLASS_KNOCK; s_last_confidence = confidence;
-    _morph_to(&s_class_scenes[AUDIO_CLASS_KNOCK]);
+    const emotion_scene_t *sc = ui_theme_is_light() ? &s_class_scenes_light[AUDIO_CLASS_KNOCK] : &s_class_scenes[AUDIO_CLASS_KNOCK];
+    _morph_to(sc);
     _push_toast(AUDIO_CLASS_KNOCK, confidence);
     _restart_clear_timer();
 }
 
 void ui_emotion_notify_system(bool is_error) {
-    if (is_error) { _morph_to(&s_sad_scene); _restart_clear_timer(); }
-    else ui_emotion_set_by_audio(-1, 0.0f);
+    if (is_error) {
+        _morph_to(ui_theme_is_light() ? &s_sad_scene_light : &s_sad_scene);
+        _restart_clear_timer();
+    } else {
+        ui_emotion_set_by_audio(-1, 0.0f);
+    }
 }
 
 void ui_emotion_pause_preview(void) {
@@ -379,6 +466,13 @@ void ui_emotion_resume_preview(void) {
 static void _emotion_theme_refresh(void) {
     if (!s_root) return;
     const ui_theme_t *t = ui_theme_get();
+    /* Page background — only override if scene is idle */
+    if (s_current == EMOTION_IDLE || s_current == EMOTION_LISTENING) {
+        lv_obj_set_style_bg_color(s_root, t->bg, 0);
+    }
+    /* Labels */
+    if (s_title_label) lv_obj_set_style_text_color(s_title_label, t->text_primary, 0);
+    if (s_subtitle_label) lv_obj_set_style_text_color(s_subtitle_label, t->text_secondary, 0);
     /* Toast backgrounds */
     for (int i = 0; i < TOAST_COUNT; i++) {
         if (s_toasts[i]) {

@@ -1,5 +1,5 @@
 /*
- * ui_theme.c — Light/Dark dual-theme system with toggle button helper
+ * ui_theme.c — Light/Dark dual-theme system with self-updating toggle button
  */
 #include "lvgl_port/ui/ui_theme.h"
 #include "esp_log.h"
@@ -8,6 +8,8 @@ static const char *TAG = "THEME";
 
 static ui_theme_id_t s_theme_id = UI_THEME_DARK;
 static ui_theme_t    s_theme;
+static lv_obj_t     *s_toggle_btn;
+static lv_obj_t     *s_toggle_label;
 
 /* Per-page refresh hooks */
 void (*ui_main_theme_refresh)(void) = NULL;
@@ -40,6 +42,15 @@ static void _toggle_btn_cb(lv_event_t *e)
 {
     (void)e;
     ui_theme_toggle();
+    /* Update button appearance */
+    if (s_toggle_btn) {
+        lv_obj_set_style_bg_color(s_toggle_btn, s_theme.card_bg, 0);
+        lv_obj_set_style_border_color(s_toggle_btn, s_theme.accent, 0);
+    }
+    if (s_toggle_label) {
+        lv_label_set_text(s_toggle_label, ui_theme_is_dark() ? "Dark" : "Light");
+        lv_obj_set_style_text_color(s_toggle_label, s_theme.text_primary, 0);
+    }
 }
 
 /* ─── Public ─── */
@@ -94,23 +105,23 @@ void ui_theme_apply_card(lv_obj_t *obj)
 
 lv_obj_t *ui_theme_create_toggle_btn(lv_obj_t *parent)
 {
-    lv_obj_t *btn = lv_btn_create(parent);
-    lv_obj_remove_style_all(btn);
-    lv_obj_set_size(btn, 54, 36);
-    lv_obj_set_style_radius(btn, 8, 0);
-    lv_obj_set_style_bg_color(btn, s_theme.card_bg, 0);
-    lv_obj_set_style_bg_opa(btn, LV_OPA_COVER, 0);
-    lv_obj_set_style_border_width(btn, 1, 0);
-    lv_obj_set_style_border_color(btn, s_theme.accent, 0);
-    lv_obj_set_style_shadow_width(btn, 0, 0);
-    lv_obj_set_pos(btn, LV_HOR_RES - 78, LV_VER_RES - 48);
-    lv_obj_add_event_cb(btn, _toggle_btn_cb, LV_EVENT_CLICKED, NULL);
+    s_toggle_btn = lv_btn_create(parent);
+    lv_obj_remove_style_all(s_toggle_btn);
+    lv_obj_set_size(s_toggle_btn, 80, 36);
+    lv_obj_set_style_radius(s_toggle_btn, 8, 0);
+    lv_obj_set_style_bg_color(s_toggle_btn, s_theme.card_bg, 0);
+    lv_obj_set_style_bg_opa(s_toggle_btn, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_width(s_toggle_btn, 1, 0);
+    lv_obj_set_style_border_color(s_toggle_btn, s_theme.accent, 0);
+    lv_obj_set_style_shadow_width(s_toggle_btn, 0, 0);
+    lv_obj_set_pos(s_toggle_btn, LV_HOR_RES - 100, LV_VER_RES - 48);
+    lv_obj_add_event_cb(s_toggle_btn, _toggle_btn_cb, LV_EVENT_CLICKED, NULL);
 
-    lv_obj_t *lbl = lv_label_create(btn);
-    lv_label_set_text(lbl, ui_theme_is_dark() ? "☀" : "🌙");
-    lv_obj_set_style_text_font(lbl, &lv_font_montserrat_24, 0);
-    lv_obj_set_style_text_color(lbl, s_theme.text_primary, 0);
-    lv_obj_center(lbl);
+    s_toggle_label = lv_label_create(s_toggle_btn);
+    lv_label_set_text(s_toggle_label, ui_theme_is_dark() ? "Dark" : "Light");
+    lv_obj_set_style_text_font(s_toggle_label, &lv_font_montserrat_24, 0);
+    lv_obj_set_style_text_color(s_toggle_label, s_theme.text_primary, 0);
+    lv_obj_center(s_toggle_label);
 
-    return btn;
+    return s_toggle_btn;
 }

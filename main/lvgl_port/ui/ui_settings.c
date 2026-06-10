@@ -81,7 +81,6 @@ void ui_settings_create(lv_obj_t *scr)
     const ui_theme_t *t = ui_theme_get();
 
     ui_theme_apply_bg(scr);
-    ui_theme_create_toggle_btn(scr);
 
     /* Title card */
     s_title_card = lv_obj_create(scr);
