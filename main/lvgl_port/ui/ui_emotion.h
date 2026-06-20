@@ -46,6 +46,7 @@ emotion_t ui_emotion_get_current(void);
  * @param confidence 置信度 (0.0 ~ 1.0)
  */
 void ui_emotion_set_by_audio(int class_id, float confidence);
+void ui_emotion_set_by_visual(int emotion_id, float confidence, float face_score);
 
 /**
  * @brief 根据视觉分类结果更新表情（预留）

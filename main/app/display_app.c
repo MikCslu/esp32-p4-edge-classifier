@@ -4,9 +4,11 @@
 #include "lvgl_port/ui/ui_emotion.h"
 #include "lvgl_port/ui/ui_theme.h"
 #include "esp_log.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
 static const char *TAG = "DISPLAY_APP";
-#define DISPLAY_SWITCH_ANIM_MS 160
+#define DISPLAY_SWITCH_ANIM_MS 0
 
 static int s_current_page = DISPLAY_PAGE_MAIN;
 static lv_obj_t *s_pages[DISPLAY_PAGE_COUNT];
@@ -73,10 +75,10 @@ static void _gesture_event_cb(lv_event_t *e)
     lv_dir_t dir = lv_indev_get_gesture_dir(indev);
     if (dir == LV_DIR_LEFT) {
         _switch_page_anim((s_current_page + 1) % DISPLAY_PAGE_COUNT,
-                          LV_SCR_LOAD_ANIM_FADE_ON);
+                          LV_SCR_LOAD_ANIM_NONE);
     } else if (dir == LV_DIR_RIGHT) {
         _switch_page_anim((s_current_page + DISPLAY_PAGE_COUNT - 1) % DISPLAY_PAGE_COUNT,
-                          LV_SCR_LOAD_ANIM_FADE_ON);
+                          LV_SCR_LOAD_ANIM_NONE);
     }
 }
 
@@ -92,12 +94,21 @@ void display_app_init(void)
         return;
     }
 
-    /* Acquire DSI lock to prevent race with LVGL task on CPU1 */
-    if (!mipi_dsi_lcd_lock(3000)) {
-        ESP_LOGE(TAG, "Failed to acquire DSI lock for init");
+    bool locked = false;
+    for (int i = 0; i < 20; i++) {
+        if (mipi_dsi_lcd_lock(1000)) {
+            locked = true;
+            break;
+        }
+        ESP_LOGW(TAG, "Waiting for LVGL lock before UI init (%d/20)", i + 1);
+        vTaskDelay(pdMS_TO_TICKS(50));
+    }
+    if (!locked) {
+        ESP_LOGE(TAG, "Failed to acquire LVGL lock for UI init");
         return;
     }
 
+    ESP_LOGI(TAG, "Creating UI pages");
     ui_theme_init();
 
     for (int i = 0; i < DISPLAY_PAGE_COUNT; i++) {
@@ -127,7 +138,15 @@ void display_app_init(void)
     }
 
     lv_scr_load(s_pages[DISPLAY_PAGE_EMOTION]);
+    lv_obj_invalidate(s_pages[DISPLAY_PAGE_EMOTION]);
     s_current_page = DISPLAY_PAGE_EMOTION;
+
+    esp_err_t start_ret = mipi_dsi_lcd_start();
+    if (start_ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to start LVGL rendering: %d", start_ret);
+        mipi_dsi_lcd_unlock();
+        return;
+    }
 
     mipi_dsi_lcd_unlock();
 
@@ -136,9 +155,14 @@ void display_app_init(void)
              DISPLAY_PAGE_COUNT);
 }
 
+bool display_app_is_ready(void)
+{
+    return s_init_done;
+}
+
 void display_app_switch_page(int page_idx)
 {
-    _switch_page_anim(page_idx, LV_SCR_LOAD_ANIM_FADE_ON);
+    _switch_page_anim(page_idx, LV_SCR_LOAD_ANIM_NONE);
 }
 
 int display_app_get_current_page(void)

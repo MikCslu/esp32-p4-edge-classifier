@@ -35,6 +35,11 @@ static const char *s_class_titles[APP_AUDIO_CLASS_COUNT] = {
 static app_audio_stats_t s_audio_stats = {
     .last_class_id = -1,
 };
+static app_visual_stats_t s_visual_stats = {
+    .last_result = {
+        .emotion_id = -1,
+    },
+};
 
 const char *app_audio_class_name(int class_id)
 {
@@ -105,4 +110,25 @@ float app_state_audio_avg_confidence(int class_id)
     }
     return s_audio_stats.confidence_sum[class_id] /
            (float)s_audio_stats.class_counts[class_id];
+}
+
+void app_state_record_visual(const visual_cls_result_t *result)
+{
+    if (!result) {
+        return;
+    }
+
+    s_visual_stats.total_events++;
+    if (result->face_detected) {
+        s_visual_stats.face_events++;
+    }
+    if (result->emotion_id >= 0 && result->emotion_id < VISUAL_EMOTION_CLASS_COUNT) {
+        s_visual_stats.emotion_counts[result->emotion_id]++;
+    }
+    s_visual_stats.last_result = *result;
+}
+
+const app_visual_stats_t *app_state_get_visual(void)
+{
+    return &s_visual_stats;
 }

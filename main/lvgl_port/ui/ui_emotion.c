@@ -7,6 +7,7 @@
 #include "lvgl_port/ui/ui_theme.h"
 #include "service/app_state.h"
 #include "service/camera_service.h"
+#include "service/visual_classify_service.h"
 #include "esp_log.h"
 #include "esp_random.h"
 #include <stdio.h>
@@ -28,11 +29,11 @@ static void _emotion_theme_refresh(void);
 #define TOAST_HIDE_MS            3200
 #define CAMERA_PREVIEW_PULL_MS   33
 
-#define EYE_L_CX        320
-#define EYE_R_CX        704
-#define EYE_CY          300
-#define EYE_DIAMETER    220
-#define HL_SIZE         38
+#define EYE_L_CX        (LV_HOR_RES / 2 - 92)
+#define EYE_R_CX        (LV_HOR_RES / 2 + 92)
+#define EYE_CY          (LV_VER_RES / 2)
+#define EYE_DIAMETER    150
+#define HL_SIZE         26
 
 #define AUDIO_CLASS_ALARM        0
 #define AUDIO_CLASS_CAR_HORN     1
@@ -435,6 +436,41 @@ void ui_emotion_set_by_audio(int class_id, float confidence) {
         _restart_clear_timer(); return;
     }
     _morph_to(ui_theme_is_light() ? &s_thinking_scene_light : &s_thinking_scene);
+    _restart_clear_timer();
+}
+
+void ui_emotion_set_by_visual(int emotion_id, float confidence, float face_score) {
+    if (emotion_id < 0 || face_score < 0.70f || confidence < 0.45f) {
+        return;
+    }
+
+    char text[96];
+    snprintf(text, sizeof(text), "Face %s  %d%%",
+             visual_emotion_name(emotion_id),
+             (int)(confidence * 100.0f + 0.5f));
+    _push_toast_text(text);
+
+    switch (emotion_id) {
+    case VISUAL_EMOTION_HAPPY:
+        ui_emotion_set(EMOTION_HAPPY);
+        break;
+    case VISUAL_EMOTION_SURPRISE:
+    case VISUAL_EMOTION_FEAR:
+    case VISUAL_EMOTION_ANGER:
+        ui_emotion_set(EMOTION_SURPRISED);
+        if (confidence >= 0.70f) {
+            _trigger_urgency_pulse();
+        }
+        break;
+    case VISUAL_EMOTION_SAD:
+    case VISUAL_EMOTION_DISGUST:
+        ui_emotion_set(EMOTION_SAD);
+        break;
+    case VISUAL_EMOTION_NEUTRAL:
+    default:
+        return;
+    }
+
     _restart_clear_timer();
 }
 

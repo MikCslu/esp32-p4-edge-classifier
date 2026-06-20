@@ -1,4 +1,5 @@
 #pragma once
+#include <stdbool.h>
 #include "esp_err.h"
 #include "lvgl.h"
 
@@ -16,6 +17,7 @@ extern "C" {
 #endif
 
 void     display_app_init(void);
+bool     display_app_is_ready(void);
 void     display_app_switch_page(int page_idx);
 int      display_app_get_current_page(void);
 lv_obj_t *display_app_get_page(int page_idx);

@@ -1,10 +1,12 @@
 #pragma once
 #include "esp_err.h"
 #include "service/audio_types.h"
+#include "service/visual_classify_service.h"
 #include <stdint.h>
 
 typedef enum {
     EVENT_AUDIO_CLASSIFICATION,
+    EVENT_VISUAL_CLASSIFICATION,
     EVENT_TOUCH,
     EVENT_SYSTEM,
 } event_type_t;
@@ -12,6 +14,7 @@ typedef enum {
 typedef struct {
     event_type_t type;
     audio_class_result_t audio_result;
+    visual_cls_result_t visual_result;
     uint32_t timestamp_ms;
 } event_t;
 

@@ -28,8 +28,14 @@ esp_err_t es8311_codec_init(es8311_dir_t dir)
         return ESP_OK;
     }
 
+    esp_err_t ret = bsp_i2c_init();
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "bsp_i2c_init failed: %d", ret);
+        return ret;
+    }
+
     /* Init I2S peripheral */
-    esp_err_t ret = bsp_audio_init(NULL);
+    ret = bsp_audio_init(NULL);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "bsp_audio_init failed: %d", ret);
         return ret;

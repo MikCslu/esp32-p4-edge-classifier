@@ -3,6 +3,7 @@
 #include "lvgl.h"
 #include "tasks/ui_task.h"
 #include "driver/display/dsi_lcd.h"
+#include "service/alert_feedback_service.h"
 #include "service/event_service.h"
 #include "service/app_state.h"
 #include "app/display_app.h"
@@ -22,6 +23,10 @@ void ui_task(void *pvParameters)
     while (1) {
         event_t evt;
         if (event_srv_receive(&evt, 100) == ESP_OK) {
+            if (!display_app_is_ready()) {
+                ESP_LOGW(TAG, "Display app is not ready, UI event dropped");
+                continue;
+            }
             if (evt.type == EVENT_AUDIO_CLASSIFICATION) {
                 if (mipi_dsi_lcd_lock(1000)) {
                     app_state_record_audio(&evt.audio_result, evt.timestamp_ms);
@@ -34,6 +39,10 @@ void ui_task(void *pvParameters)
                                                 evt.audio_result.confidence);
                     }
                     bool attention = app_audio_class_needs_attention(evt.audio_result.class_id);
+                    if (attention) {
+                        alert_feedback_trigger(evt.audio_result.class_id,
+                                               evt.audio_result.confidence);
+                    }
                     if (attention && display_app_get_current_page() != DISPLAY_PAGE_EMOTION) {
                         display_app_switch_page(DISPLAY_PAGE_EMOTION);
                     } else if (!attention &&
@@ -44,6 +53,23 @@ void ui_task(void *pvParameters)
                                  app_audio_class_title(evt.audio_result.class_id),
                                  (int)(evt.audio_result.confidence * 100.0f + 0.5f));
                         ui_notify_show(text, 2800);
+                    }
+                    display_app_refresh_current();
+                    mipi_dsi_lcd_unlock();
+                }
+            } else if (evt.type == EVENT_VISUAL_CLASSIFICATION) {
+                if (mipi_dsi_lcd_lock(1000)) {
+                    const visual_cls_result_t *result = &evt.visual_result;
+                    if (display_app_get_current_page() == DISPLAY_PAGE_EMOTION) {
+                        ui_emotion_set_by_visual(result->emotion_id,
+                                                 result->emotion_confidence,
+                                                 result->face_score);
+                    } else if (result->emotion_id >= 0) {
+                        char text[96];
+                        snprintf(text, sizeof(text), "Face %s  %d%%",
+                                 visual_emotion_name(result->emotion_id),
+                                 (int)(result->emotion_confidence * 100.0f + 0.5f));
+                        ui_notify_show(text, 2200);
                     }
                     display_app_refresh_current();
                     mipi_dsi_lcd_unlock();

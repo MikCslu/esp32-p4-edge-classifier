@@ -14,6 +14,7 @@ extern "C" {
  * @return ESP_OK on success
  */
 esp_err_t mipi_dsi_lcd_init(lv_display_t **disp);
+esp_err_t mipi_dsi_lcd_start(void);
 
 /**
  * @brief Set backlight brightness

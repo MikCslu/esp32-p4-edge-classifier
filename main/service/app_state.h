@@ -1,6 +1,7 @@
 #pragma once
 
 #include "service/audio_types.h"
+#include "service/visual_classify_service.h"
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -25,6 +26,13 @@ typedef struct {
     float last_confidence;
 } app_audio_stats_t;
 
+typedef struct {
+    uint32_t total_events;
+    uint32_t face_events;
+    uint32_t emotion_counts[VISUAL_EMOTION_CLASS_COUNT];
+    visual_cls_result_t last_result;
+} app_visual_stats_t;
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -35,6 +43,8 @@ bool app_audio_class_needs_attention(int class_id);
 void app_state_record_audio(const audio_class_result_t *result, uint32_t timestamp_ms);
 const app_audio_stats_t *app_state_get_audio(void);
 float app_state_audio_avg_confidence(int class_id);
+void app_state_record_visual(const visual_cls_result_t *result);
+const app_visual_stats_t *app_state_get_visual(void);
 
 #ifdef __cplusplus
 }

@@ -17,7 +17,9 @@
 
 #include "driver/sensor/sc2336_camera.h"
 #include "bsp/esp-bsp.h"
+#include "esp_video_init.h"
 #include "esp_video_device.h"
+#include "esp_check.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
@@ -33,10 +35,10 @@ static const char *TAG = "SC2336";
 /* ───────────────────────────────────────────── */
 /*  V4L2 state                                    */
 /* ───────────────────────────────────────────── */
-#define CAM_DEVICE  BSP_CAMERA_DEVICE
+#define CAM_DEVICE  ESP_VIDEO_MIPI_CSI_DEVICE_NAME
 #define NUM_BUFS    3
-#define CAM_PREVIEW_WIDTH   1024
-#define CAM_PREVIEW_HEIGHT  600
+#define CAM_PREVIEW_WIDTH   480
+#define CAM_PREVIEW_HEIGHT  800
 
 static int           s_fd         = -1;
 static uint8_t      *s_v4l2_buf[NUM_BUFS] = {NULL};
@@ -66,11 +68,27 @@ esp_err_t sc2336_cam_init(void)
         }
     }
 
-    /* 1. BSP: init MIPI-CSI + sensor. esp_video devices are global, so do it once. */
+    /* 1. Init MIPI-CSI + sensor. Waveshare BSP owns the shared I2C bus. */
     if (!s_bsp_started) {
-        esp_err_t ret = bsp_camera_start(NULL);
+        ESP_RETURN_ON_ERROR(bsp_i2c_init(), TAG, "bsp_i2c_init failed");
+
+        esp_video_init_csi_config_t csi_config[] = {
+            {
+                .sccb_config = {
+                    .init_sccb = false,
+                    .i2c_handle = bsp_i2c_get_handle(),
+                    .freq = CONFIG_BSP_I2C_CLK_SPEED_HZ,
+                },
+                .reset_pin = -1,
+                .pwdn_pin = -1,
+            },
+        };
+        esp_video_init_config_t cam_config = {
+            .csi = csi_config,
+        };
+        esp_err_t ret = esp_video_init(&cam_config);
         if (ret != ESP_OK) {
-            ESP_LOGE(TAG, "bsp_camera_start failed: %d", ret);
+            ESP_LOGE(TAG, "esp_video_init failed: %d", ret);
             return ret;
         }
         s_bsp_started = true;

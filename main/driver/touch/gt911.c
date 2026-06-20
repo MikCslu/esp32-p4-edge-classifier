@@ -28,8 +28,13 @@ esp_err_t gt911_touch_init(void)
         return ESP_OK;
     }
 
-    /* BSP touch init handles I2C init internally */
-    bsp_touch_config_t cfg = {0};
+    bsp_display_cfg_t cfg = {
+        .touch_flags = {
+            .swap_xy = 0,
+            .mirror_x = 0,
+            .mirror_y = 0,
+        },
+    };
     esp_err_t ret = bsp_touch_new(&cfg, &s_tp);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "bsp_touch_new failed: %d", ret);

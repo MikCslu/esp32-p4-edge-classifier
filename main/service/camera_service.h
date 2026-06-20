@@ -15,12 +15,17 @@ extern "C" {
 #define CAMERA_PREVIEW_H 94
 #define CAMERA_PREVIEW_BYTES (CAMERA_PREVIEW_W * CAMERA_PREVIEW_H * 2)
 
+#define CAMERA_VISION_W 224
+#define CAMERA_VISION_H 224
+#define CAMERA_VISION_BYTES (CAMERA_VISION_W * CAMERA_VISION_H * 2)
+
 typedef struct {
     uint16_t width;
     uint16_t height;
     uint32_t pixelformat;
     uint32_t sequence;
     bool byte_swap;
+    uint8_t crop_id;
 } camera_preview_info_t;
 
 typedef struct {
@@ -38,6 +43,8 @@ typedef struct {
     uint32_t min_build_us;
     uint32_t max_build_us;
     uint32_t avg_build_us;
+    uint32_t vision_frames;
+    uint32_t vision_last_build_us;
 } camera_service_stats_t;
 
 esp_err_t camera_service_start(void);
@@ -48,6 +55,9 @@ esp_err_t camera_service_acquire_preview(uint32_t last_sequence,
 esp_err_t camera_service_copy_preview(uint8_t *dst,
                                       size_t dst_size,
                                       camera_preview_info_t *info);
+esp_err_t camera_service_copy_vision(uint8_t *dst,
+                                     size_t dst_size,
+                                     camera_preview_info_t *info);
 void camera_service_get_stats(camera_service_stats_t *stats);
 
 #ifdef __cplusplus

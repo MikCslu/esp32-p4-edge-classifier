@@ -11,7 +11,7 @@ extern "C" {
 /**
  * @brief Initialize SC2336 camera sensor via V4L2
  *
- * Wraps bsp_camera_start() and opens /dev/video0.
+ * Initializes esp_video MIPI-CSI with the Waveshare BSP I2C bus and opens /dev/video0.
  * @return ESP_OK on success
  */
 esp_err_t sc2336_cam_init(void);

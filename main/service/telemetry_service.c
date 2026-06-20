@@ -3,6 +3,7 @@
 #include "service/audio_classify_service.h"
 #include "service/audio_frame_bus.h"
 #include "service/camera_service.h"
+#include "service/visual_classify_service.h"
 #include "runtime/task_config.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
@@ -44,6 +45,7 @@ static void telemetry_task(void *arg)
     uint32_t last_audio_processed = 0;
     uint32_t last_audio_active = 0;
     uint32_t last_camera_frames = 0;
+    uint32_t last_visual_processed = 0;
     uint32_t log_count = 0;
     audio_cls_srv_stats_t initial_audio = {};
     audio_cls_srv_get_stats(&initial_audio);
@@ -107,7 +109,7 @@ static void telemetry_task(void *arg)
         uint32_t camera_frames_delta = camera_stats.frames - last_camera_frames;
         last_camera_frames = camera_stats.frames;
         ESP_LOGI(TAG,
-                 "camera frames=%u fps=%.1f acquire_failed=%u no_buffer=%u ui_same_frame=%u build_us last=%u avg=%u min=%u max=%u",
+                 "camera frames=%u fps=%.1f acquire_failed=%u no_buffer=%u ui_same_frame=%u build_us last=%u avg=%u min=%u max=%u vision=%u vision_us=%u",
                  (unsigned)camera_stats.frames,
                  (double)((float)camera_frames_delta / elapsed_s),
                  (unsigned)camera_stats.acquire_failed,
@@ -116,7 +118,31 @@ static void telemetry_task(void *arg)
                  (unsigned)camera_stats.last_build_us,
                  (unsigned)camera_stats.avg_build_us,
                  (unsigned)camera_stats.min_build_us,
-                 (unsigned)camera_stats.max_build_us);
+                 (unsigned)camera_stats.max_build_us,
+                 (unsigned)camera_stats.vision_frames,
+                 (unsigned)camera_stats.vision_last_build_us);
+
+        visual_cls_srv_stats_t visual_stats = {};
+        visual_cls_srv_get_stats(&visual_stats);
+        uint32_t visual_delta = visual_stats.processed - last_visual_processed;
+        last_visual_processed = visual_stats.processed;
+        ESP_LOGI(TAG,
+                 "visual processed=%u rate=%.1f/s faces=%u emotions=%u no_frame=%u err=%u time_ms last=%u avg=%u min=%u max=%u last=%s %.2f face=%.2f crop=%u rot=%u",
+                 (unsigned)visual_stats.processed,
+                 (double)((float)visual_delta / elapsed_s),
+                 (unsigned)visual_stats.faces,
+                 (unsigned)visual_stats.emotions,
+                 (unsigned)visual_stats.skipped_no_frame,
+                 (unsigned)visual_stats.errors,
+                 (unsigned)visual_stats.last_time_ms,
+                 (unsigned)visual_stats.avg_time_ms,
+                 (unsigned)visual_stats.min_time_ms,
+                 (unsigned)visual_stats.max_time_ms,
+                 visual_emotion_name(visual_stats.last_result.emotion_id),
+                 (double)visual_stats.last_result.emotion_confidence,
+                 (double)visual_stats.last_result.face_score,
+                 (unsigned)visual_stats.last_result.crop_id,
+                 (unsigned)visual_stats.last_result.rotation_deg);
 
         if ((log_count % TELEMETRY_STACK_EVERY) == 0) {
             for (uint8_t i = 0; i < s_task_count; i++) {

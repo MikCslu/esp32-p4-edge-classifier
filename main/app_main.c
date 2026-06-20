@@ -7,7 +7,10 @@
 #include "driver/display/dsi_lcd.h"
 #include "service/event_service.h"
 #include "service/app_config_service.h"
+#include "service/alert_feedback_service.h"
 #include "service/camera_service.h"
+#include "service/touch_input_service.h"
+#include "service/visual_classify_service.h"
 #include "service/audio_frame_bus.h"
 #include "service/telemetry_service.h"
 #include "app/audio_event_app.h"
@@ -50,14 +53,22 @@ extern "C" void app_main(void)
     ESP_ERROR_CHECK(event_srv_init());
     ESP_ERROR_CHECK(audio_frame_bus_init());
 
+    TaskHandle_t audio_capture_handle = NULL;
+    TaskHandle_t audio_infer_handle = NULL;
+    TaskHandle_t ui_handle = NULL;
+
     display_hal_get_instance()->init(NULL, NULL);
 
     audio_event_app_init();
     display_app_init();
-
-    TaskHandle_t audio_capture_handle = NULL;
-    TaskHandle_t audio_infer_handle = NULL;
-    TaskHandle_t ui_handle = NULL;
+    esp_err_t touch_ret = touch_input_service_start();
+    if (touch_ret != ESP_OK) {
+        ESP_LOGW(TAG, "Touch input disabled: %d", touch_ret);
+    }
+    esp_err_t feedback_ret = alert_feedback_service_start();
+    if (feedback_ret != ESP_OK) {
+        ESP_LOGW(TAG, "Alert feedback disabled: %d", feedback_ret);
+    }
 
     ESP_ERROR_CHECK(start_pinned_task(audio_capture_task,
                                       AUDIO_CAPTURE_TASK_NAME,
@@ -71,7 +82,9 @@ extern "C" void app_main(void)
                                       AUDIO_INFER_TASK_PRIO,
                                       AUDIO_INFER_TASK_CORE,
                                       &audio_infer_handle));
+
     ESP_ERROR_CHECK(camera_service_start());
+    ESP_ERROR_CHECK(visual_cls_srv_init());
     ESP_ERROR_CHECK(start_pinned_task(ui_task,
                                       UI_TASK_NAME,
                                       UI_TASK_STACK,
@@ -82,6 +95,7 @@ extern "C" void app_main(void)
     ESP_ERROR_CHECK(telemetry_register_task(AUDIO_CAPTURE_TASK_NAME, audio_capture_handle));
     ESP_ERROR_CHECK(telemetry_register_task(AUDIO_INFER_TASK_NAME, audio_infer_handle));
     ESP_ERROR_CHECK(telemetry_register_task(CAMERA_SERVICE_TASK_NAME, camera_service_get_task_handle()));
+    ESP_ERROR_CHECK(telemetry_register_task(VISUAL_INFER_TASK_NAME, visual_cls_srv_get_task_handle()));
     ESP_ERROR_CHECK(telemetry_register_task(UI_TASK_NAME, ui_handle));
     ESP_ERROR_CHECK(telemetry_service_start());
 

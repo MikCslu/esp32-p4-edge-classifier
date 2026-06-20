@@ -1,175 +1,121 @@
 /*
- * ui_log.c — Recognition Log with full theme refresh
+ * Portrait recognition timeline.
  */
 #include "lvgl.h"
 #include "service/app_state.h"
 #include "lvgl_port/ui/ui_theme.h"
 #include <stdio.h>
 
-#define MAX_ROWS 20
-#define ROW_H    29
+#define MAX_ROWS 16
+#define PAGE_PAD 16
+#define ROW_H    40
 
 static lv_obj_t *s_scr;
-static lv_obj_t *s_title_card, *s_log_card;
-static lv_obj_t *s_title, *s_sub;
-static lv_obj_t *s_header_num, *s_header_cls, *s_header_tm;
-static lv_obj_t *s_log_rows[MAX_ROWS];
-static lv_obj_t *s_log_nums[MAX_ROWS];
-static lv_obj_t *s_log_texts[MAX_ROWS];
-static lv_obj_t *s_log_times[MAX_ROWS];
+static lv_obj_t *s_title;
+static lv_obj_t *s_panel;
+static lv_obj_t *s_rows[MAX_ROWS];
+static lv_obj_t *s_dot[MAX_ROWS];
+static lv_obj_t *s_name[MAX_ROWS];
+static lv_obj_t *s_meta[MAX_ROWS];
 
-static lv_color_t _class_color(int class_id)
+static lv_color_t class_color(int class_id)
 {
-    static const lv_color_t pal[] = {
-        LV_COLOR_MAKE(0x7d,0xd3,0xfc), LV_COLOR_MAKE(0xff,0x8f,0xb3),
-        LV_COLOR_MAKE(0xff,0xd1,0x66), LV_COLOR_MAKE(0x8e,0xe6,0xc9),
-        LV_COLOR_MAKE(0xc0,0x84,0xfc), LV_COLOR_MAKE(0x67,0xe8,0xf9),
-        LV_COLOR_MAKE(0xf9,0xa8,0xd4), LV_COLOR_MAKE(0x6e,0xd6,0x8a),
-        LV_COLOR_MAKE(0x94,0xa3,0xb8), LV_COLOR_MAKE(0xf4,0x71,0x6b),
-        LV_COLOR_MAKE(0x60,0xa5,0xfa), LV_COLOR_MAKE(0x93,0xc5,0xfd),
-    };
-    int idx = class_id < 0 ? 0 : (class_id >= 12 ? class_id % 12 : class_id);
-    return pal[idx];
-}
-
-static void _refresh_rows(void)
-{
-    const app_audio_stats_t *stats = app_state_get_audio();
     const ui_theme_t *t = ui_theme_get();
-    size_t total = stats->recent_count;
-    int i;
-
-    if (total == 0) {
-        for (i = 0; i < MAX_ROWS; i++)
-            if (s_log_rows[i]) lv_obj_add_flag(s_log_rows[i], LV_OBJ_FLAG_HIDDEN);
-        return;
-    }
-
-    int start = (int)total > MAX_ROWS ? (int)total - MAX_ROWS : 0;
-    int count = (int)total - start;
-    if (count > MAX_ROWS) count = MAX_ROWS;
-
-    for (i = 0; i < count; i++) {
-        const app_audio_recent_t *item = &stats->recent[start + count - 1 - i];
-        lv_color_t c = _class_color(item->class_id);
-
-        lv_obj_clear_flag(s_log_rows[i], LV_OBJ_FLAG_HIDDEN);
-        lv_obj_set_style_bg_color(s_log_rows[i], (i % 2 == 0) ? t->card_bg : t->bar_bg, 0);
-
-        char num[6];
-        snprintf(num, sizeof(num), "%02u", (unsigned)(i + 1));
-        lv_label_set_text(s_log_nums[i], num);
-        lv_obj_set_style_text_color(s_log_nums[i], t->text_muted, 0);
-
-        lv_label_set_text(s_log_texts[i], app_audio_class_title(item->class_id));
-        lv_obj_set_style_text_color(s_log_texts[i], c, 0);
-
-        char tm[20];
-        snprintf(tm, sizeof(tm), "+%lus  %d%%", (unsigned long)(item->timestamp_ms / 1000),
-                 (int)(item->confidence * 100.0f + 0.5f));
-        lv_label_set_text(s_log_times[i], tm);
-        lv_obj_set_style_text_color(s_log_times[i], t->text_muted, 0);
-    }
-    for (i = count; i < MAX_ROWS; i++)
-        if (s_log_rows[i]) lv_obj_add_flag(s_log_rows[i], LV_OBJ_FLAG_HIDDEN);
+    if (class_id < 0) return t->text_muted;
+    return app_audio_class_needs_attention(class_id) ? t->danger : t->accent;
 }
 
-static void _theme_refresh(void)
+static void refresh_theme(void)
 {
     if (!s_scr) return;
     const ui_theme_t *t = ui_theme_get();
     lv_obj_set_style_bg_color(s_scr, t->bg, 0);
-    if (s_title_card) { lv_obj_set_style_bg_color(s_title_card, t->card_bg, 0); lv_obj_set_style_border_color(s_title_card, t->card_border, 0); }
-    if (s_log_card)   { lv_obj_set_style_bg_color(s_log_card, t->card_bg, 0); lv_obj_set_style_border_color(s_log_card, t->card_border, 0); }
-    if (s_title) lv_obj_set_style_text_color(s_title, t->text_primary, 0);
-    if (s_sub)   lv_obj_set_style_text_color(s_sub, t->text_secondary, 0);
-    if (s_header_num) lv_obj_set_style_text_color(s_header_num, t->text_muted, 0);
-    if (s_header_cls) lv_obj_set_style_text_color(s_header_cls, t->text_muted, 0);
-    if (s_header_tm)  lv_obj_set_style_text_color(s_header_tm, t->text_muted, 0);
-    _refresh_rows();
+    if (s_title) {
+        lv_obj_set_style_text_font(s_title, &lv_font_montserrat_28, 0);
+        lv_obj_set_style_text_color(s_title, t->text_primary, 0);
+    }
+    if (s_panel) ui_theme_apply_card(s_panel);
 }
 
-void ui_log_refresh(void) { _refresh_rows(); }
+void ui_log_refresh(void)
+{
+    const app_audio_stats_t *stats = app_state_get_audio();
+    const ui_theme_t *t = ui_theme_get();
+    char buf[64];
+
+    refresh_theme();
+
+    int total = (int)stats->recent_count;
+    int count = total > MAX_ROWS ? MAX_ROWS : total;
+    int start = total - count;
+
+    for (int i = 0; i < MAX_ROWS; i++) {
+        if (i >= count) {
+            lv_obj_add_flag(s_rows[i], LV_OBJ_FLAG_HIDDEN);
+            continue;
+        }
+
+        const app_audio_recent_t *item = &stats->recent[start + count - 1 - i];
+        lv_obj_clear_flag(s_rows[i], LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_style_bg_color(s_rows[i], (i % 2) ? t->bar_bg : t->card_bg, 0);
+        lv_obj_set_style_bg_color(s_dot[i], class_color(item->class_id), 0);
+
+        lv_label_set_text(s_name[i], app_audio_class_title(item->class_id));
+        lv_obj_set_style_text_color(s_name[i], class_color(item->class_id), 0);
+        lv_obj_set_style_text_font(s_name[i], &lv_font_montserrat_24, 0);
+
+        snprintf(buf, sizeof(buf), "+%lus  %d%%",
+                 (unsigned long)(item->timestamp_ms / 1000),
+                 (int)(item->confidence * 100.0f + 0.5f));
+        lv_label_set_text(s_meta[i], buf);
+        lv_obj_set_style_text_color(s_meta[i], t->text_muted, 0);
+        lv_obj_set_style_text_font(s_meta[i], &lv_font_montserrat_14, 0);
+    }
+}
 
 void ui_log_create(lv_obj_t *scr)
 {
     s_scr = scr;
-    const ui_theme_t *t = ui_theme_get();
-    int i;
-
     ui_theme_apply_bg(scr);
 
-    /* Title card */
-    s_title_card = lv_obj_create(scr);
-    lv_obj_remove_style_all(s_title_card);
-    ui_theme_apply_card(s_title_card);
-    lv_obj_set_pos(s_title_card, 12, 8);
-    lv_obj_set_size(s_title_card, LV_HOR_RES - 98, 78);
+    s_title = lv_label_create(scr);
+    lv_label_set_text(s_title, "Timeline");
+    lv_obj_set_pos(s_title, PAGE_PAD, 18);
 
-    s_title = lv_label_create(s_title_card);
-    lv_label_set_text(s_title, "Recognition Log");
-    lv_obj_set_style_text_font(s_title, &lv_font_montserrat_48, 0);
-    lv_obj_set_style_text_color(s_title, t->text_primary, 0);
-    lv_obj_align(s_title, LV_ALIGN_LEFT_MID, 12, -6);
+    ui_theme_create_toggle_btn(scr);
 
-    s_sub = lv_label_create(s_title_card);
-    lv_label_set_text(s_sub, "Latest detections, confidence and elapsed time");
-    lv_obj_set_style_text_font(s_sub, &lv_font_montserrat_24, 0);
-    lv_obj_set_style_text_color(s_sub, t->text_secondary, 0);
-    lv_obj_align(s_sub, LV_ALIGN_LEFT_MID, 12, 22);
+    s_panel = lv_obj_create(scr);
+    lv_obj_remove_style_all(s_panel);
+    ui_theme_apply_card(s_panel);
+    lv_obj_set_pos(s_panel, PAGE_PAD, 64);
+    lv_obj_set_size(s_panel, LV_HOR_RES - PAGE_PAD * 2, LV_VER_RES - 86);
 
-    /* Table header */
-    s_header_num = lv_label_create(scr);
-    lv_label_set_text(s_header_num, "#");
-    lv_obj_set_style_text_font(s_header_num, &lv_font_montserrat_14, 0);
-    lv_obj_set_style_text_color(s_header_num, t->text_muted, 0);
-    lv_obj_set_pos(s_header_num, 26, 100);
+    for (int i = 0; i < MAX_ROWS; i++) {
+        int y = 12 + i * ROW_H;
+        s_rows[i] = lv_obj_create(s_panel);
+        lv_obj_remove_style_all(s_rows[i]);
+        lv_obj_set_size(s_rows[i], LV_PCT(100), ROW_H - 4);
+        lv_obj_set_style_radius(s_rows[i], 8, 0);
+        lv_obj_set_style_bg_opa(s_rows[i], LV_OPA_COVER, 0);
+        lv_obj_clear_flag(s_rows[i], LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_set_pos(s_rows[i], 0, y);
 
-    s_header_cls = lv_label_create(scr);
-    lv_label_set_text(s_header_cls, "Class");
-    lv_obj_set_style_text_font(s_header_cls, &lv_font_montserrat_14, 0);
-    lv_obj_set_style_text_color(s_header_cls, t->text_muted, 0);
-    lv_obj_set_pos(s_header_cls, 70, 100);
+        s_dot[i] = lv_obj_create(s_rows[i]);
+        lv_obj_remove_style_all(s_dot[i]);
+        lv_obj_set_size(s_dot[i], 10, 10);
+        lv_obj_set_style_radius(s_dot[i], 5, 0);
+        lv_obj_set_style_bg_opa(s_dot[i], LV_OPA_COVER, 0);
+        lv_obj_align(s_dot[i], LV_ALIGN_LEFT_MID, 14, 0);
 
-    s_header_tm = lv_label_create(scr);
-    lv_label_set_text(s_header_tm, "Time / Confidence");
-    lv_obj_set_style_text_font(s_header_tm, &lv_font_montserrat_14, 0);
-    lv_obj_set_style_text_color(s_header_tm, t->text_muted, 0);
-    lv_obj_set_pos(s_header_tm, LV_HOR_RES - 240, 100);
+        s_name[i] = lv_label_create(s_rows[i]);
+        lv_obj_set_width(s_name[i], LV_HOR_RES - 210);
+        lv_label_set_long_mode(s_name[i], LV_LABEL_LONG_CLIP);
+        lv_obj_align(s_name[i], LV_ALIGN_LEFT_MID, 36, 0);
 
-    /* Log card with rows */
-    s_log_card = lv_obj_create(scr);
-    lv_obj_remove_style_all(s_log_card);
-    ui_theme_apply_card(s_log_card);
-    lv_obj_set_pos(s_log_card, 12, 124);
-    lv_obj_set_size(s_log_card, LV_HOR_RES - 24, LV_VER_RES - 142);
-
-    for (i = 0; i < MAX_ROWS; i++) {
-        int y = 4 + i * ROW_H;
-        s_log_rows[i] = lv_obj_create(s_log_card);
-        lv_obj_remove_style_all(s_log_rows[i]);
-        lv_obj_set_size(s_log_rows[i], LV_PCT(100), ROW_H - 1);
-        lv_obj_set_style_radius(s_log_rows[i], 4, 0);
-        lv_obj_set_style_bg_opa(s_log_rows[i], LV_OPA_COVER, 0);
-        lv_obj_set_style_border_width(s_log_rows[i], 0, 0);
-        lv_obj_clear_flag(s_log_rows[i], LV_OBJ_FLAG_SCROLLABLE);
-        lv_obj_set_pos(s_log_rows[i], 2, y);
-
-        s_log_nums[i] = lv_label_create(s_log_rows[i]);
-        lv_obj_set_style_text_font(s_log_nums[i], &lv_font_montserrat_24, 0);
-        lv_obj_align(s_log_nums[i], LV_ALIGN_LEFT_MID, 8, 0);
-
-        s_log_texts[i] = lv_label_create(s_log_rows[i]);
-        lv_obj_set_style_text_font(s_log_texts[i], &lv_font_montserrat_24, 0);
-        lv_label_set_long_mode(s_log_texts[i], LV_LABEL_LONG_CLIP);
-        lv_obj_set_width(s_log_texts[i], LV_HOR_RES - 280);
-        lv_obj_align(s_log_texts[i], LV_ALIGN_LEFT_MID, 56, 0);
-
-        s_log_times[i] = lv_label_create(s_log_rows[i]);
-        lv_obj_set_style_text_font(s_log_times[i], &lv_font_montserrat_24, 0);
-        lv_obj_align(s_log_times[i], LV_ALIGN_RIGHT_MID, -8, 0);
+        s_meta[i] = lv_label_create(s_rows[i]);
+        lv_obj_align(s_meta[i], LV_ALIGN_RIGHT_MID, -12, 0);
     }
 
-    ui_log_theme_refresh = _theme_refresh;
+    ui_log_theme_refresh = refresh_theme;
     ui_log_refresh();
 }
