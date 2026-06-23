@@ -29,6 +29,7 @@ typedef struct {
 } ui_theme_t;
 
 void ui_theme_init(void);
+void ui_theme_set(ui_theme_id_t id);
 void ui_theme_toggle(void);
 ui_theme_id_t ui_theme_get_id(void);
 const ui_theme_t *ui_theme_get(void);

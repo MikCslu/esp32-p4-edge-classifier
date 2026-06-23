@@ -1,6 +1,5 @@
 #include "service/alert_feedback_service.h"
 #include "service/audio_playback_service.h"
-#include "service/speech_service.h"
 
 #include "driver/actuator/motor_driver.h"
 #include "esp_log.h"
@@ -27,6 +26,8 @@ typedef struct {
 static QueueHandle_t s_queue;
 static TaskHandle_t s_task;
 static bool s_running;
+static bool s_motor_enabled = true;
+static uint8_t s_motor_strength = 75;
 static int64_t s_last_trigger_us[APP_AUDIO_CLASS_COUNT];
 
 static void sleep_ms(uint32_t ms)
@@ -36,9 +37,11 @@ static void sleep_ms(uint32_t ms)
 
 static void play_motor_pattern(const motor_step_t *steps, size_t count)
 {
-    if (!motor_driver_is_available()) return;
+    if (!s_motor_enabled || !motor_driver_is_available()) return;
     for (size_t i = 0; i < count; ++i) {
-        motor_driver_set_power(steps[i].power);
+        uint8_t power = (uint8_t)(((uint16_t)steps[i].power * s_motor_strength + 50U) / 100U);
+        if (power > 100) power = 100;
+        motor_driver_set_power(power);
         sleep_ms(steps[i].duration_ms);
         motor_driver_stop();
         sleep_ms(steps[i].gap_ms);
@@ -66,7 +69,9 @@ static void play_feedback(int class_id, float confidence)
 
     switch (class_id) {
     case 0: { /* alarm → speech + motor */
-        speech_service_say(SPEECH_ALARM_WARNING, AUDIO_PLAY_PRIO_ALERT);
+        submit_tone(1200, 140, 45, AUDIO_PLAY_PRIO_ALERT);
+        submit_tone(0, 70, 45, AUDIO_PLAY_PRIO_ALERT);
+        submit_tone(1600, 180, 45, AUDIO_PLAY_PRIO_ALERT);
         const motor_step_t motor[] = {{1200,120,90},{650,0,75}};
         play_motor_pattern(motor, 2);
         break;
@@ -79,7 +84,9 @@ static void play_feedback(int class_id, float confidence)
         break;
     }
     case 2: { /* knocking → speech */
-        speech_service_say(SPEECH_WELCOME_HOME, AUDIO_PLAY_PRIO_ALERT);
+        submit_tone(720, 80, 30, AUDIO_PLAY_PRIO_ALERT);
+        submit_tone(0, 70, 30, AUDIO_PLAY_PRIO_ALERT);
+        submit_tone(720, 80, 30, AUDIO_PLAY_PRIO_ALERT);
         const motor_step_t motor[] = {{95,85,55},{95,0,55}};
         play_motor_pattern(motor, 2);
         break;
@@ -91,13 +98,17 @@ static void play_feedback(int class_id, float confidence)
         break;
     }
     case 6: { /* glass break → speech */
-        speech_service_say(SPEECH_GLASS_ALERT, AUDIO_PLAY_PRIO_URGENT);
+        submit_tone(2200, 80, 45, AUDIO_PLAY_PRIO_URGENT);
+        submit_tone(0, 45, 45, AUDIO_PLAY_PRIO_URGENT);
+        submit_tone(2500, 120, 45, AUDIO_PLAY_PRIO_URGENT);
         const motor_step_t motor[] = {{80,55,90},{80,55,90},{120,0,90}};
         play_motor_pattern(motor, 3);
         break;
     }
     case 7: { /* doorbell → speech */
-        speech_service_say(SPEECH_DOORBELL_VISITOR, AUDIO_PLAY_PRIO_ALERT);
+        submit_tone(784, 220, 30, AUDIO_PLAY_PRIO_ALERT);
+        submit_tone(0, 80, 30, AUDIO_PLAY_PRIO_ALERT);
+        submit_tone(659, 300, 30, AUDIO_PLAY_PRIO_ALERT);
         const motor_step_t motor[] = {{120,120,40},{160,0,40}};
         play_motor_pattern(motor, 2);
         break;
@@ -178,3 +189,31 @@ void alert_feedback_trigger(int class_id, float confidence)
 }
 
 bool alert_feedback_service_is_running(void) { return s_running; }
+
+void alert_feedback_set_motor_enabled(bool enabled)
+{
+    s_motor_enabled = enabled;
+    if (!enabled) {
+        motor_driver_stop();
+    }
+    ESP_LOGI(TAG, "Motor feedback %s", enabled ? "enabled" : "disabled");
+}
+
+bool alert_feedback_get_motor_enabled(void)
+{
+    return s_motor_enabled;
+}
+
+void alert_feedback_set_motor_strength(uint8_t percent)
+{
+    if (percent > 100) {
+        percent = 100;
+    }
+    s_motor_strength = percent;
+    ESP_LOGI(TAG, "Motor strength %u%%", s_motor_strength);
+}
+
+uint8_t alert_feedback_get_motor_strength(void)
+{
+    return s_motor_strength;
+}

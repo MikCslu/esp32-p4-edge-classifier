@@ -1,63 +1,49 @@
 #include "service/speech_service.h"
+
 #include "esp_log.h"
 
 static const char *TAG = "SPEECH_SVC";
 
-/* Speech mapping: each speech ID plays a distinctive tone chime.
- * Future: load WAV from SPIFFS/voice/ partition.
- */
+static void submit_tone(audio_play_request_t *req, uint16_t freq_hz, uint16_t duration_ms)
+{
+    req->tone.freq_hz = freq_hz;
+    req->tone.duration_ms = duration_ms;
+    (void)audio_playback_submit(req);
+}
 
 esp_err_t speech_service_say(speech_id_t id, audio_play_priority_t prio)
 {
     audio_play_request_t req = {
-        .cmd      = AUDIO_PLAY_CMD_TONE,
+        .cmd = AUDIO_PLAY_CMD_TONE,
         .priority = prio,
-        .volume   = 0,   /* use system default volume */
+        .volume = 0,
     };
 
     switch (id) {
-    case SPEECH_WELCOME_HOME: {
-        /* C5 → E5 rising chime */
-        req.tone.freq_hz = 523;  req.tone.duration_ms = 140;
-        audio_playback_submit(&req);
-        req.tone.freq_hz = 659;  req.tone.duration_ms = 220;
-        audio_playback_submit(&req);
+    case SPEECH_HELLO:
+        submit_tone(&req, 660, 120);
+        submit_tone(&req, 0, 45);
+        submit_tone(&req, 880, 180);
         break;
-    }
-    case SPEECH_ALARM_WARNING: {
-        /* 3 rapid beeps at 1.2kHz */
-        req.tone.duration_ms = 100;
-        for (int i = 0; i < 3; i++) {
-            req.tone.freq_hz = 1200;
-            audio_playback_submit(&req);
-            if (i < 2) {
-                req.tone.freq_hz = 0; req.tone.duration_ms = 60;
-                audio_playback_submit(&req);
-                req.tone.duration_ms = 100;
-            }
-        }
+
+    case SPEECH_GOOD_MORNING:
+        submit_tone(&req, 523, 100);
+        submit_tone(&req, 659, 100);
+        submit_tone(&req, 784, 220);
         break;
-    }
-    case SPEECH_GLASS_ALERT: {
-        /* High sharp double ping */
-        req.tone.freq_hz = 2200; req.tone.duration_ms = 80;
-        audio_playback_submit(&req);
-        req.tone.freq_hz = 0;    req.tone.duration_ms = 40;
-        audio_playback_submit(&req);
-        req.tone.freq_hz = 2500; req.tone.duration_ms = 120;
-        audio_playback_submit(&req);
+
+    case SPEECH_WELCOME_BACK:
+        submit_tone(&req, 587, 150);
+        submit_tone(&req, 0, 55);
+        submit_tone(&req, 740, 220);
         break;
-    }
-    case SPEECH_DOORBELL_VISITOR: {
-        /* Ding-dong (G5 → E5) */
-        req.tone.freq_hz = 784;  req.tone.duration_ms = 220;
-        audio_playback_submit(&req);
-        req.tone.freq_hz = 0;    req.tone.duration_ms = 80;
-        audio_playback_submit(&req);
-        req.tone.freq_hz = 659;  req.tone.duration_ms = 300;
-        audio_playback_submit(&req);
+
+    case SPEECH_SEE_YOU:
+        submit_tone(&req, 784, 130);
+        submit_tone(&req, 0, 45);
+        submit_tone(&req, 587, 220);
         break;
-    }
+
     default:
         ESP_LOGW(TAG, "Unknown speech id %d", id);
         return ESP_ERR_INVALID_ARG;

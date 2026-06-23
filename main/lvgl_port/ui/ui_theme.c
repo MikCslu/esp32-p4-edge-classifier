@@ -2,6 +2,7 @@
  * ui_theme.c — Light/Dark dual-theme system with self-updating toggle button
  */
 #include "lvgl_port/ui/ui_theme.h"
+#include "service/app_config_service.h"
 #include "esp_log.h"
 
 static const char *TAG = "THEME";
@@ -58,9 +59,26 @@ static void _toggle_btn_cb(lv_event_t *e)
 
 void ui_theme_init(void)
 {
-    s_theme_id = UI_THEME_DARK;
-    s_theme = s_dark_theme;
-    ESP_LOGI(TAG, "Theme: dark");
+    app_device_settings_t settings;
+    if (app_config_load_device_settings(&settings) == ESP_OK && settings.theme_id == UI_THEME_LIGHT) {
+        s_theme_id = UI_THEME_LIGHT;
+        s_theme = s_light_theme;
+    } else {
+        s_theme_id = UI_THEME_DARK;
+        s_theme = s_dark_theme;
+    }
+    ESP_LOGI(TAG, "Theme: %s", ui_theme_is_dark() ? "dark" : "light");
+}
+
+void ui_theme_set(ui_theme_id_t id)
+{
+    if (id == UI_THEME_LIGHT) {
+        s_theme_id = UI_THEME_LIGHT;
+        s_theme = s_light_theme;
+    } else {
+        s_theme_id = UI_THEME_DARK;
+        s_theme = s_dark_theme;
+    }
 }
 
 void ui_theme_toggle(void)
@@ -73,6 +91,7 @@ void ui_theme_toggle(void)
         s_theme = s_dark_theme;
     }
     ESP_LOGI(TAG, "Theme: %s", ui_theme_is_dark() ? "dark" : "light");
+    ESP_ERROR_CHECK_WITHOUT_ABORT(app_config_save_theme((uint8_t)s_theme_id));
 
     if (ui_main_theme_refresh)      ui_main_theme_refresh();
     if (ui_log_theme_refresh)       ui_log_theme_refresh();

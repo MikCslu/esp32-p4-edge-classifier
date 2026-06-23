@@ -8,10 +8,10 @@ extern "C" {
 #endif
 
 typedef enum {
-    SPEECH_WELCOME_HOME = 0,
-    SPEECH_ALARM_WARNING,
-    SPEECH_GLASS_ALERT,
-    SPEECH_DOORBELL_VISITOR,
+    SPEECH_HELLO = 0,
+    SPEECH_GOOD_MORNING,
+    SPEECH_WELCOME_BACK,
+    SPEECH_SEE_YOU,
     SPEECH_COUNT,
 } speech_id_t;
 

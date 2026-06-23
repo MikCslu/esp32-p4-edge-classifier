@@ -97,6 +97,12 @@ void app_state_record_audio(const audio_class_result_t *result, uint32_t timesta
     s_audio_stats.recent[0].timestamp_ms = timestamp_ms;
 }
 
+void app_state_clear_audio(void)
+{
+    memset(&s_audio_stats, 0, sizeof(s_audio_stats));
+    s_audio_stats.last_class_id = -1;
+}
+
 const app_audio_stats_t *app_state_get_audio(void)
 {
     return &s_audio_stats;

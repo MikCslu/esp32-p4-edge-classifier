@@ -41,6 +41,7 @@ const char *app_audio_class_name(int class_id);
 const char *app_audio_class_title(int class_id);
 bool app_audio_class_needs_attention(int class_id);
 void app_state_record_audio(const audio_class_result_t *result, uint32_t timestamp_ms);
+void app_state_clear_audio(void);
 const app_audio_stats_t *app_state_get_audio(void);
 float app_state_audio_avg_confidence(int class_id);
 void app_state_record_visual(const visual_cls_result_t *result);

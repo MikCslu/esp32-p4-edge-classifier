@@ -7,11 +7,13 @@
 #include "driver/display/dsi_lcd.h"
 #include "service/event_service.h"
 #include "service/app_config_service.h"
+#include "service/app_state.h"
 #include "service/alert_feedback_service.h"
 #include "service/audio_playback_service.h"
 #include "service/camera_service.h"
 #include "service/touch_input_service.h"
 #include "service/visual_classify_service.h"
+#include "service/history_service.h"
 #include "service/audio_frame_bus.h"
 #include "service/telemetry_service.h"
 #include "app/audio_event_app.h"
@@ -22,6 +24,25 @@
 #include "tasks/ui_task.h"
 
 static const char *TAG = "APP_MAIN";
+
+static void restore_audio_stats_from_history(void)
+{
+    history_record_t records[HISTORY_AUDIO_MAX];
+    size_t count = history_get_recent(records, HISTORY_AUDIO_MAX);
+
+    for (size_t i = 0; i < count; i++) {
+        const history_record_t *record = &records[count - 1 - i];
+        audio_class_result_t result = {
+            .class_id = record->class_id,
+            .confidence = (float)record->confidence_pct / 100.0f,
+            .triggered = (record->flags & 0x01) != 0,
+        };
+        app_state_record_audio(&result, record->timestamp_ms);
+    }
+    if (count > 0) {
+        ESP_LOGI(TAG, "Restored %u audio history records", (unsigned)count);
+    }
+}
 
 static esp_err_t start_pinned_task(TaskFunction_t task,
                                    const char *name,
@@ -51,6 +72,8 @@ extern "C" void app_main(void)
     ESP_LOGI(TAG, "========================================");
 
     ESP_ERROR_CHECK(app_config_init());
+    ESP_ERROR_CHECK(history_service_init());
+    restore_audio_stats_from_history();
     ESP_ERROR_CHECK(event_srv_init());
     ESP_ERROR_CHECK(audio_frame_bus_init());
 
@@ -75,6 +98,13 @@ extern "C" void app_main(void)
     esp_err_t feedback_ret = alert_feedback_service_start();
     if (feedback_ret != ESP_OK) {
         ESP_LOGW(TAG, "Alert feedback disabled: %d", feedback_ret);
+    }
+
+    app_device_settings_t settings;
+    if (app_config_load_device_settings(&settings) == ESP_OK) {
+        audio_playback_set_volume(settings.volume);
+        alert_feedback_set_motor_enabled(settings.motor_enabled);
+        alert_feedback_set_motor_strength(settings.motor_strength);
     }
 
     ESP_ERROR_CHECK(start_pinned_task(audio_capture_task,

@@ -5,8 +5,10 @@
 #include "lvgl.h"
 #include "lvgl_port/ui/ui_voice.h"
 #include "lvgl_port/ui/ui_theme.h"
+#include "service/app_config_service.h"
 #include "service/audio_playback_service.h"
 #include "service/speech_service.h"
+#include "esp_err.h"
 #include <stdio.h>
 
 #define PAGE_PAD 16
@@ -22,10 +24,10 @@ static const struct {
     const char *label;
     speech_id_t id;
 } s_presets[] = {
-    {"Welcome",  SPEECH_WELCOME_HOME},
-    {"Alarm",    SPEECH_ALARM_WARNING},
-    {"Glass",    SPEECH_GLASS_ALERT},
-    {"Doorbell", SPEECH_DOORBELL_VISITOR},
+    {"Hello",        SPEECH_HELLO},
+    {"Morning",      SPEECH_GOOD_MORNING},
+    {"Welcome Back", SPEECH_WELCOME_BACK},
+    {"See You",      SPEECH_SEE_YOU},
 };
 #define PRESET_COUNT (sizeof(s_presets)/sizeof(s_presets[0]))
 
@@ -43,10 +45,13 @@ static void _stop_cb(lv_event_t *e)
 
 static void _vol_cb(lv_event_t *e)
 {
-    (void)e;
+    lv_event_code_t code = lv_event_get_code(e);
     int v = lv_slider_get_value(s_vol_slider);
     audio_playback_set_volume((uint8_t)v);
     if (s_vol_label) lv_label_set_text_fmt(s_vol_label, "%d%%", v);
+    if (code == LV_EVENT_RELEASED) {
+        ESP_ERROR_CHECK_WITHOUT_ABORT(app_config_save_volume((uint8_t)v));
+    }
 }
 
 static void _refresh_theme(void)
@@ -116,7 +121,7 @@ void ui_voice_create(lv_obj_t *scr)
     lv_obj_set_pos(vol_lbl, 16, 10);
 
     s_vol_label = lv_label_create(vol_card);
-    lv_label_set_text(s_vol_label, "50%");
+    lv_label_set_text_fmt(s_vol_label, "%u%%", audio_playback_get_volume());
     lv_obj_set_style_text_font(s_vol_label, &lv_font_montserrat_24, 0);
     lv_obj_set_style_text_color(s_vol_label, t->accent, 0);
     lv_obj_align(s_vol_label, LV_ALIGN_TOP_RIGHT, -16, 10);
@@ -124,7 +129,7 @@ void ui_voice_create(lv_obj_t *scr)
     s_vol_slider = lv_slider_create(vol_card);
     lv_obj_set_size(s_vol_slider, CARD_W - 32, 22);
     lv_slider_set_range(s_vol_slider, 0, 100);
-    lv_slider_set_value(s_vol_slider, 50, LV_ANIM_OFF);
+    lv_slider_set_value(s_vol_slider, audio_playback_get_volume(), LV_ANIM_OFF);
     lv_obj_set_style_bg_color(s_vol_slider, t->slider_track, LV_PART_MAIN);
     lv_obj_set_style_bg_opa(s_vol_slider, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_set_style_radius(s_vol_slider, 6, LV_PART_MAIN);
@@ -134,6 +139,7 @@ void ui_voice_create(lv_obj_t *scr)
     lv_obj_set_style_pad_all(s_vol_slider, 0, LV_PART_KNOB);
     lv_obj_align(s_vol_slider, LV_ALIGN_BOTTOM_MID, 0, -10);
     lv_obj_add_event_cb(s_vol_slider, _vol_cb, LV_EVENT_VALUE_CHANGED, NULL);
+    lv_obj_add_event_cb(s_vol_slider, _vol_cb, LV_EVENT_RELEASED, NULL);
 
     /* Stop button */
     y += 96;

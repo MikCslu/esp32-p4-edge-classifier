@@ -5,6 +5,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/task.h"
+#include <string.h>
 
 static const char *TAG = "AUDIO_PLAY";
 
@@ -62,6 +63,14 @@ static esp_err_t _write_block(const int16_t *data, size_t samples)
 
 static esp_err_t _play_tone(uint16_t freq, uint16_t dur_ms, uint8_t vol)
 {
+    if (dur_ms == 0) {
+        return ESP_OK;
+    }
+    if (freq == 0) {
+        const size_t silence_samples = ((size_t)AP_SAMPLE_RATE * dur_ms) / 1000U;
+        return _write_silence(silence_samples);
+    }
+
     const int amp = (8000 * (int)vol) / 100;
     const uint32_t total = ((uint32_t)AP_SAMPLE_RATE * dur_ms) / 1000U;
     const uint32_t half = (uint32_t)AP_SAMPLE_RATE / ((uint32_t)freq * 2U);
@@ -262,4 +271,9 @@ void audio_playback_stop(void)
 void audio_playback_set_volume(uint8_t vol)
 {
     s_volume = vol > 100 ? 100 : vol;
+}
+
+uint8_t audio_playback_get_volume(void)
+{
+    return s_volume;
 }

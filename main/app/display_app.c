@@ -2,6 +2,7 @@
 #include "hal/display_hal.h"
 #include "driver/display/dsi_lcd.h"
 #include "lvgl_port/ui/ui_emotion.h"
+#include "lvgl_port/ui/ui_quick_panel.h"
 #include "lvgl_port/ui/ui_theme.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
@@ -78,7 +79,9 @@ static void _gesture_event_cb(lv_event_t *e)
     }
 
     lv_dir_t dir = lv_indev_get_gesture_dir(indev);
-    if (dir == LV_DIR_LEFT) {
+    if (dir == LV_DIR_BOTTOM) {
+        ui_quick_panel_show();
+    } else if (dir == LV_DIR_LEFT) {
         _switch_page_anim((s_current_page + 1) % DISPLAY_PAGE_COUNT,
                           LV_SCR_LOAD_ANIM_NONE);
     } else if (dir == LV_DIR_RIGHT) {
