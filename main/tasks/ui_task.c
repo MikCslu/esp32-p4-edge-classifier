@@ -4,7 +4,9 @@
 #include "tasks/ui_task.h"
 #include "driver/display/dsi_lcd.h"
 #include "service/alert_feedback_service.h"
+#include "service/audio_playback_service.h"
 #include "service/event_service.h"
+#include "service/speech_service.h"
 #include "service/app_state.h"
 #include "app/display_app.h"
 #include "lvgl_port/ui/ui_emotion.h"
@@ -32,6 +34,7 @@ void ui_task(void *pvParameters)
                     app_state_record_audio(&evt.audio_result, evt.timestamp_ms);
                     if (evt.audio_result.class_id == AUDIO_CLASS_KNOCK) {
                         ui_emotion_show_welcome_home(evt.audio_result.confidence);
+                        speech_service_say(SPEECH_WELCOME_HOME, AUDIO_PLAY_PRIO_ALERT);
                         ESP_LOGI(TAG, "Knock detected: welcome home (confidence=%.3f)",
                                  (double)evt.audio_result.confidence);
                     } else {

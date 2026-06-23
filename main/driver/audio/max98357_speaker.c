@@ -85,6 +85,11 @@ bool max98357_speaker_is_available(void)
     return s_available;
 }
 
+i2s_chan_handle_t max98357_get_tx_handle(void)
+{
+    return s_tx_chan;
+}
+
 void max98357_speaker_tone(uint16_t freq_hz, uint16_t duration_ms, uint8_t volume_percent)
 {
     if (!s_available || freq_hz == 0 || duration_ms == 0) {

@@ -9,6 +9,7 @@ typedef enum {
     DISPLAY_PAGE_LOG,
     DISPLAY_PAGE_SETTINGS,
     DISPLAY_PAGE_EMOTION,
+    DISPLAY_PAGE_VOICE,
     DISPLAY_PAGE_COUNT,
 } display_page_t;
 

@@ -8,6 +8,7 @@
 #include "service/event_service.h"
 #include "service/app_config_service.h"
 #include "service/alert_feedback_service.h"
+#include "service/audio_playback_service.h"
 #include "service/camera_service.h"
 #include "service/touch_input_service.h"
 #include "service/visual_classify_service.h"
@@ -65,6 +66,12 @@ extern "C" void app_main(void)
     if (touch_ret != ESP_OK) {
         ESP_LOGW(TAG, "Touch input disabled: %d", touch_ret);
     }
+
+    esp_err_t audio_ret = audio_playback_service_start();
+    if (audio_ret != ESP_OK) {
+        ESP_LOGW(TAG, "Audio playback disabled: %d", audio_ret);
+    }
+
     esp_err_t feedback_ret = alert_feedback_service_start();
     if (feedback_ret != ESP_OK) {
         ESP_LOGW(TAG, "Alert feedback disabled: %d", feedback_ret);

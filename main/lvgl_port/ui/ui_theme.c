@@ -16,6 +16,7 @@ void (*ui_main_theme_refresh)(void) = NULL;
 void (*ui_log_theme_refresh)(void) = NULL;
 void (*ui_settings_theme_refresh)(void) = NULL;
 void (*ui_emotion_theme_refresh)(void) = NULL;
+void (*ui_voice_theme_refresh)(void) = NULL;
 
 #define M(r,g,b) LV_COLOR_MAKE(r,g,b)
 
@@ -77,6 +78,7 @@ void ui_theme_toggle(void)
     if (ui_log_theme_refresh)       ui_log_theme_refresh();
     if (ui_settings_theme_refresh)  ui_settings_theme_refresh();
     if (ui_emotion_theme_refresh)   ui_emotion_theme_refresh();
+    if (ui_voice_theme_refresh)     ui_voice_theme_refresh();
 }
 
 ui_theme_id_t ui_theme_get_id(void)    { return s_theme_id; }

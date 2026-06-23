@@ -17,9 +17,11 @@ static bool s_init_done = false;
 extern void ui_main_create(lv_obj_t *scr);
 extern void ui_log_create(lv_obj_t *scr);
 extern void ui_settings_create(lv_obj_t *scr);
+extern void ui_voice_create(lv_obj_t *scr);
 extern void ui_main_refresh(void);
 extern void ui_log_refresh(void);
 extern void ui_settings_refresh(void);
+extern void ui_voice_refresh(void);
 
 void display_app_refresh_page(int page_idx)
 {
@@ -32,6 +34,9 @@ void display_app_refresh_page(int page_idx)
         break;
     case DISPLAY_PAGE_SETTINGS:
         ui_settings_refresh();
+        break;
+    case DISPLAY_PAGE_VOICE:
+        ui_voice_refresh();
         break;
     default:
         break;
@@ -131,6 +136,9 @@ void display_app_init(void)
             break;
         case DISPLAY_PAGE_EMOTION:
             ui_emotion_create(s_pages[i]);
+            break;
+        case DISPLAY_PAGE_VOICE:
+            ui_voice_create(s_pages[i]);
             break;
         default:
             break;

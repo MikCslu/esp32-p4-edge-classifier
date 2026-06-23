@@ -46,5 +46,6 @@ extern void (*ui_main_theme_refresh)(void);
 extern void (*ui_log_theme_refresh)(void);
 extern void (*ui_settings_theme_refresh)(void);
 extern void (*ui_emotion_theme_refresh)(void);
+extern void (*ui_voice_theme_refresh)(void);
 
 #endif
