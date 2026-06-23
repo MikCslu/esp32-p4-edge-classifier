@@ -13,6 +13,8 @@
 #include "service/camera_service.h"
 #include "service/touch_input_service.h"
 #include "service/visual_classify_service.h"
+#include "service/wifi_service.h"
+#include "service/tts_client.h"
 #include "service/history_service.h"
 #include "service/audio_frame_bus.h"
 #include "service/telemetry_service.h"
@@ -106,6 +108,11 @@ extern "C" void app_main(void)
         alert_feedback_set_motor_enabled(settings.motor_enabled);
         alert_feedback_set_motor_strength(settings.motor_strength);
     }
+
+    /* Init WiFi + online TTS backend */
+    wifi_service_init();
+    wifi_service_connect("miuke", "88888888");
+    tts_client_init("http://8.156.65.36:5001/tts");
 
     ESP_ERROR_CHECK(start_pinned_task(audio_capture_task,
                                       AUDIO_CAPTURE_TASK_NAME,

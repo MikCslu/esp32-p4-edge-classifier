@@ -36,6 +36,7 @@ typedef struct {
             uint32_t        sample_rate;
             uint8_t         bits_per_sample;
             uint8_t         channels;
+            bool            free_on_complete; /* heap_caps_free after playback */
         } pcm;
     };
     uint8_t volume;           /* 0–100, 0 = keep current */

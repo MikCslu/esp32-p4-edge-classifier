@@ -12,7 +12,10 @@ idf_component_register(SRCS
     "service/event_service.c"
     "service/history_service.c"
     "service/speech_service.c"
+    "service/tts_client.c"
     "service/touch_input_service.c"
+    "service/wifi_service.c"
+    "service/wifi_stub.c"
     "service/telemetry_service.c"
     "service/visual_classify_service.c"
     "tasks/audio_capture_task.c"
@@ -39,7 +42,7 @@ idf_component_register(SRCS
     "driver/sensor/sc2336_camera.c"
                     INCLUDE_DIRS "."
                     REQUIRES esp-dl lvgl__lvgl espressif__esp_lvgl_port
-                              nvs_flash
+                              nvs_flash esp_wifi esp_http_client
                               esp_driver_ppa
                               waveshare__esp32_p4_platform
                               espressif__esp_codec_dev
@@ -55,6 +58,9 @@ set_source_files_properties(service/visual_classify_service.c PROPERTIES LANGUAG
 set_source_files_properties(tasks/audio_inference_task.c PROPERTIES LANGUAGE CXX)
 set_source_files_properties(app_main.c PROPERTIES LANGUAGE CXX)
 
+# Force linker to resolve our WiFi stub (IDF 5.5.4 P4 host WiFi bug)
+target_link_libraries(${COMPONENT_LIB} INTERFACE "-Wl,-u,esp_wifi_sta_get_rsnxe")
+
 target_add_binary_data(${COMPONENT_LIB}
     "${CMAKE_CURRENT_SOURCE_DIR}/models/emotion_model.espdl"
     RENAME_TO "emotion_model_espdl"
@@ -63,4 +69,22 @@ target_add_binary_data(${COMPONENT_LIB}
 target_add_binary_data(${COMPONENT_LIB}
     "${CMAKE_CURRENT_SOURCE_DIR}/models/espdet_pico_224_224_face.espdl"
     RENAME_TO "espdet_pico_224_224_face_espdl"
+)
+
+# Embedded real speech WAVs
+target_add_binary_data(${COMPONENT_LIB}
+    "${CMAKE_CURRENT_SOURCE_DIR}/speech/speech_hello.wav"
+    RENAME_TO "speech_hello_wav"
+)
+target_add_binary_data(${COMPONENT_LIB}
+    "${CMAKE_CURRENT_SOURCE_DIR}/speech/speech_morning.wav"
+    RENAME_TO "speech_morning_wav"
+)
+target_add_binary_data(${COMPONENT_LIB}
+    "${CMAKE_CURRENT_SOURCE_DIR}/speech/speech_welcome.wav"
+    RENAME_TO "speech_welcome_wav"
+)
+target_add_binary_data(${COMPONENT_LIB}
+    "${CMAKE_CURRENT_SOURCE_DIR}/speech/speech_seeyou.wav"
+    RENAME_TO "speech_seeyou_wav"
 )

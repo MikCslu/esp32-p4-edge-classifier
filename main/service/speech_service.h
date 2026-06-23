@@ -21,6 +21,17 @@ typedef enum {
  */
 esp_err_t speech_service_say(speech_id_t id, audio_play_priority_t prio);
 
+/**
+ * Online TTS: request from LAN backend, fallback to local prerecorded.
+ * @param text      Chinese text to speak
+ * @param voice     voice name (\"default\" for backend)
+ * @param fallback  local speech_id to use if network fails
+ * @param prio      audio playback priority
+ */
+esp_err_t speech_service_say_online(const char *text, const char *voice,
+                                    speech_id_t fallback,
+                                    audio_play_priority_t prio);
+
 /* Future SPIFFS integration */
 void speech_service_set_root(const char *spiffs_root);
 

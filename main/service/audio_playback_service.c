@@ -192,6 +192,10 @@ static void _worker(void *arg)
             break;
         case AUDIO_PLAY_CMD_WAV:
             _play_wav(req.pcm.data, req.pcm.size);
+            if (req.pcm.free_on_complete && req.pcm.data) {
+                heap_caps_free((void *)req.pcm.data);
+                ESP_LOGI(TAG, "Freed PSRAM WAV buffer");
+            }
             break;
         default:
             break;
