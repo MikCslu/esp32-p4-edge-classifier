@@ -3,6 +3,7 @@
 #include "service/app_state.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
+#include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/task.h"
@@ -13,12 +14,15 @@ static const char *TAG = "AUDIO_PLAY";
 #define AP_QUEUE_DEPTH     8
 #define AP_CHUNK_SAMPLES    256
 #define AP_SAMPLE_RATE      16000
+#define AP_OUTPUT_TAIL_MS   900
 
 static QueueHandle_t s_queue;
 static TaskHandle_t    s_task;
 static bool            s_running;
 static volatile bool   s_stop_flag;
 static volatile uint8_t s_current_prio;
+static volatile bool   s_output_active;
+static volatile int64_t s_output_tail_until_ms;
 static uint8_t         s_volume = 50;
 static int16_t         s_buf[AP_CHUNK_SAMPLES];
 
@@ -58,6 +62,33 @@ static esp_err_t _write_block(const int16_t *data, size_t samples)
         offset += written_samples;
     }
     return s_stop_flag ? ESP_ERR_INVALID_STATE : ESP_OK;
+}
+
+static void _mark_output_active(bool active)
+{
+    int64_t now_ms = esp_timer_get_time() / 1000;
+    s_output_active = active;
+    s_output_tail_until_ms = now_ms + AP_OUTPUT_TAIL_MS;
+}
+
+static void _free_request_payload(audio_play_request_t *req)
+{
+    if (req && req->cmd == AUDIO_PLAY_CMD_WAV &&
+        req->pcm.free_on_complete && req->pcm.data) {
+        heap_caps_free((void *)req->pcm.data);
+        req->pcm.data = NULL;
+    }
+}
+
+static void _drop_pending_requests(void)
+{
+    if (!s_queue) {
+        return;
+    }
+    audio_play_request_t dropped;
+    while (xQueueReceive(s_queue, &dropped, 0) == pdTRUE) {
+        _free_request_payload(&dropped);
+    }
 }
 
 static esp_err_t _write_block_scaled(const int16_t *data, size_t samples, uint8_t vol)
@@ -215,6 +246,7 @@ static void _worker(void *arg)
         uint8_t vol = req.volume ? req.volume : s_volume;
         s_stop_flag = false;
         s_current_prio = (uint8_t)req.priority;
+        _mark_output_active(true);
 
         switch (req.cmd) {
         case AUDIO_PLAY_CMD_TONE:
@@ -231,6 +263,7 @@ static void _worker(void *arg)
         }
 
         s_current_prio = 0;
+        _mark_output_active(false);
 
         _write_silence(AP_CHUNK_SAMPLES); /* flush tail */
     }
@@ -272,12 +305,18 @@ esp_err_t audio_playback_submit(const audio_play_request_t *req)
     /* Stop overrides any pending commands */
     if (req->cmd == AUDIO_PLAY_CMD_STOP) {
         s_stop_flag = true;
+        _drop_pending_requests();
+        _mark_output_active(false);
         return ESP_OK;
     }
 
     /* Preempt lower-priority playback */
     if (req->priority > s_current_prio) {
         s_stop_flag = true;
+    }
+
+    if (req->cmd == AUDIO_PLAY_CMD_WAV || req->cmd == AUDIO_PLAY_CMD_TONE) {
+        _mark_output_active(true);
     }
 
     /* Higher priority: drop oldest in queue and prepend */
@@ -296,9 +335,30 @@ esp_err_t audio_playback_submit(const audio_play_request_t *req)
     return ESP_OK;
 }
 
+esp_err_t audio_playback_replace(const audio_play_request_t *req)
+{
+    if (!s_running || !s_queue) return ESP_ERR_INVALID_STATE;
+    if (!req) return ESP_ERR_INVALID_ARG;
+
+    s_stop_flag = true;
+    _drop_pending_requests();
+    if (req->cmd == AUDIO_PLAY_CMD_WAV || req->cmd == AUDIO_PLAY_CMD_TONE) {
+        _mark_output_active(true);
+    }
+
+    if (xQueueSendToFront(s_queue, req, 0) != pdTRUE) {
+        ESP_LOGW(TAG, "Failed to replace playback request (cmd=%d pri=%d)",
+                 req->cmd, req->priority);
+        return ESP_ERR_NO_MEM;
+    }
+    return ESP_OK;
+}
+
 void audio_playback_stop(void)
 {
     s_stop_flag = true;
+    _drop_pending_requests();
+    _mark_output_active(false);
 }
 
 void audio_playback_set_volume(uint8_t vol)
@@ -309,4 +369,10 @@ void audio_playback_set_volume(uint8_t vol)
 uint8_t audio_playback_get_volume(void)
 {
     return s_volume;
+}
+
+bool audio_playback_is_output_active(void)
+{
+    int64_t now_ms = esp_timer_get_time() / 1000;
+    return s_output_active || now_ms < s_output_tail_until_ms;
 }

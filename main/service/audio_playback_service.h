@@ -44,9 +44,11 @@ typedef struct {
 
 esp_err_t audio_playback_service_start(void);
 esp_err_t audio_playback_submit(const audio_play_request_t *req);
+esp_err_t audio_playback_replace(const audio_play_request_t *req);
 void     audio_playback_stop(void);
 void     audio_playback_set_volume(uint8_t vol);
 uint8_t  audio_playback_get_volume(void);
+bool     audio_playback_is_output_active(void);
 
 #ifdef __cplusplus
 }

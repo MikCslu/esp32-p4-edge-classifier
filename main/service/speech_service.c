@@ -124,13 +124,13 @@ esp_err_t speech_service_say(speech_id_t id, audio_play_priority_t prio)
     req.pcm.channels = 1;
     req.pcm.free_on_complete = false;
 
-    esp_err_t ret = audio_playback_submit(&req);
+    esp_err_t ret = audio_playback_replace(&req);
     if (ret != ESP_OK) {
-        ESP_LOGW(TAG, "Failed to queue speech %s: %s", clip->name, esp_err_to_name(ret));
+        ESP_LOGW(TAG, "Failed to play speech %s: %s", clip->name, esp_err_to_name(ret));
         return ret;
     }
 
-    ESP_LOGI(TAG, "Speech %s queued (%u bytes, prio %d)",
+    ESP_LOGI(TAG, "Speech %s started (%u bytes, prio %d)",
              clip->name,
              (unsigned)req.pcm.size,
              prio);

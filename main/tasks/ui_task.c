@@ -4,6 +4,7 @@
 #include "tasks/ui_task.h"
 #include "driver/display/dsi_lcd.h"
 #include "service/alert_feedback_service.h"
+#include "service/audio_playback_service.h"
 #include "service/event_service.h"
 #include "service/app_state.h"
 #include "service/history_service.h"
@@ -29,6 +30,10 @@ void ui_task(void *pvParameters)
                 continue;
             }
             if (evt.type == EVENT_AUDIO_CLASSIFICATION) {
+                if (audio_playback_is_output_active()) {
+                    ESP_LOGI(TAG, "Audio classification ignored during local playback");
+                    continue;
+                }
                 if (mipi_dsi_lcd_lock(1000)) {
                     app_state_record_audio(&evt.audio_result, evt.timestamp_ms);
                     bool attention = app_audio_class_needs_attention(evt.audio_result.class_id);
