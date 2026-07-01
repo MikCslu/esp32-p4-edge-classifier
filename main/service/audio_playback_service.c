@@ -1,6 +1,7 @@
 #include "service/audio_playback_service.h"
 #include "driver/audio/max98357_speaker.h"
 #include "service/app_state.h"
+#include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
@@ -47,6 +48,35 @@ static esp_err_t _write_block(const int16_t *data, size_t samples)
         size_t written = 0;
         esp_err_t r = i2s_channel_write(max98357_get_tx_handle(),
                                         &data[offset], n * 2,
+                                        &written, pdMS_TO_TICKS(100));
+        if (r != ESP_OK && r != ESP_ERR_TIMEOUT) {
+            if (!s_stop_flag) ESP_LOGW(TAG, "I2S write err: %d", r);
+            return r;
+        }
+        size_t written_samples = written / 2;
+        remaining -= written_samples;
+        offset += written_samples;
+    }
+    return s_stop_flag ? ESP_ERR_INVALID_STATE : ESP_OK;
+}
+
+static esp_err_t _write_block_scaled(const int16_t *data, size_t samples, uint8_t vol)
+{
+    if (vol >= 100) {
+        return _write_block(data, samples);
+    }
+
+    size_t remaining = samples;
+    size_t offset = 0;
+    while (remaining > 0 && !s_stop_flag) {
+        size_t n = remaining > AP_CHUNK_SAMPLES ? AP_CHUNK_SAMPLES : remaining;
+        for (size_t i = 0; i < n; i++) {
+            s_buf[i] = (int16_t)(((int32_t)data[offset + i] * (int32_t)vol) / 100);
+        }
+
+        size_t written = 0;
+        esp_err_t r = i2s_channel_write(max98357_get_tx_handle(),
+                                        s_buf, n * 2,
                                         &written, pdMS_TO_TICKS(100));
         if (r != ESP_OK && r != ESP_ERR_TIMEOUT) {
             if (!s_stop_flag) ESP_LOGW(TAG, "I2S write err: %d", r);
@@ -141,7 +171,7 @@ static bool _parse_wav(const uint8_t *data, size_t size,
     return false;
 }
 
-static esp_err_t _play_wav(const uint8_t *data, size_t size)
+static esp_err_t _play_wav(const uint8_t *data, size_t size, uint8_t vol)
 {
     wav_header_t hdr;
     const uint8_t *pcm;
@@ -152,7 +182,7 @@ static esp_err_t _play_wav(const uint8_t *data, size_t size)
         pcm_len = size;
     }
     size_t samples = pcm_len / 2;
-    return _write_block((const int16_t *)pcm, samples);
+    return _write_block_scaled((const int16_t *)pcm, samples, vol);
 }
 
 /* ─── worker task ─── */
@@ -191,7 +221,10 @@ static void _worker(void *arg)
             _play_tone(req.tone.freq_hz, req.tone.duration_ms, vol);
             break;
         case AUDIO_PLAY_CMD_WAV:
-            _play_wav(req.pcm.data, req.pcm.size);
+            _play_wav(req.pcm.data, req.pcm.size, vol);
+            if (req.pcm.free_on_complete && req.pcm.data) {
+                heap_caps_free((void *)req.pcm.data);
+            }
             break;
         default:
             break;

@@ -85,6 +85,12 @@ extern "C" void app_main(void)
 
     audio_event_app_init();
     display_app_init();
+
+    ESP_ERROR_CHECK(camera_service_start());
+    for (int i = 0; i < 30 && !camera_service_is_ready(); i++) {
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+
     esp_err_t touch_ret = touch_input_service_start();
     if (touch_ret != ESP_OK) {
         ESP_LOGW(TAG, "Touch input disabled: %d", touch_ret);
@@ -120,7 +126,6 @@ extern "C" void app_main(void)
                                       AUDIO_INFER_TASK_CORE,
                                       &audio_infer_handle));
 
-    ESP_ERROR_CHECK(camera_service_start());
     ESP_ERROR_CHECK(visual_cls_srv_init());
     ESP_ERROR_CHECK(start_pinned_task(ui_task,
                                       UI_TASK_NAME,

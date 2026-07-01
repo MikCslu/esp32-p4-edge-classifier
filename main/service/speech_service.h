@@ -12,6 +12,14 @@ typedef enum {
     SPEECH_GOOD_MORNING,
     SPEECH_WELCOME_BACK,
     SPEECH_SEE_YOU,
+    SPEECH_THANKS,
+    SPEECH_HELP,
+    SPEECH_WAIT,
+    SPEECH_OK,
+    SPEECH_SORRY,
+    SPEECH_BUSY,
+    SPEECH_LATER,
+    SPEECH_NEED_HELP,
     SPEECH_COUNT,
 } speech_id_t;
 
@@ -21,7 +29,7 @@ typedef enum {
  */
 esp_err_t speech_service_say(speech_id_t id, audio_play_priority_t prio);
 
-/* Future SPIFFS integration */
+/* Kept as a compatibility hook for future external-file speech packs. */
 void speech_service_set_root(const char *spiffs_root);
 
 #ifdef __cplusplus

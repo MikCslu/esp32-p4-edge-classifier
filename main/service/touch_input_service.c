@@ -15,6 +15,7 @@ static const char *TAG = "TOUCH_INPUT";
 #define TOUCH_INPUT_TASK_PRIO  2
 #define TOUCH_INPUT_TASK_CORE  1
 #define TOUCH_POLL_MS          20
+#define TOUCH_PHYS_W           480
 
 typedef struct {
     bool pressed;
@@ -45,6 +46,13 @@ static void touch_lvgl_read_cb(lv_indev_t *indev, lv_indev_data_t *data)
 
 static void touch_cache_update(bool pressed, uint16_t x, uint16_t y)
 {
+    if (pressed) {
+        uint16_t lx = y;
+        uint16_t ly = (TOUCH_PHYS_W > x) ? (TOUCH_PHYS_W - 1U - x) : 0;
+        x = lx;
+        y = ly;
+    }
+
     portENTER_CRITICAL(&s_cache_lock);
     s_cache.pressed = pressed;
     if (pressed) {

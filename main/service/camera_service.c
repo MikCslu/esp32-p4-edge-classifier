@@ -23,6 +23,7 @@ static const char *TAG = "CAMERA_SERVICE";
 #define CAMERA_VISION_BUFFERS    2
 #define CAMERA_VISION_DIVIDER    3
 #define CAMERA_VISION_CROP_COUNT 3
+#define CAMERA_INIT_RETRY_MS     2000
 
 static TaskHandle_t s_task;
 static SemaphoreHandle_t s_lock;
@@ -160,22 +161,30 @@ static void camera_service_task(void *arg)
 {
     (void)arg;
 
-    esp_err_t ret = sc2336_cam_init();
-    if (ret != ESP_OK) {
-        ESP_LOGW(TAG, "Camera init failed: %s", esp_err_to_name(ret));
-        vTaskDelete(NULL);
-        return;
-    }
-
+    esp_err_t ret = ESP_OK;
     uint32_t width = 0;
     uint32_t height = 0;
     uint32_t pixelformat = 0;
     size_t frame_size = 0;
-    ret = sc2336_cam_get_info(&width, &height, &pixelformat, &frame_size);
-    if (ret != ESP_OK) {
-        ESP_LOGW(TAG, "Camera info failed: %s", esp_err_to_name(ret));
-        vTaskDelete(NULL);
-        return;
+
+    while (true) {
+        ret = sc2336_cam_init();
+        if (ret != ESP_OK) {
+            ESP_LOGW(TAG, "Camera init failed: %s, retrying in %d ms",
+                     esp_err_to_name(ret), CAMERA_INIT_RETRY_MS);
+            vTaskDelay(pdMS_TO_TICKS(CAMERA_INIT_RETRY_MS));
+            continue;
+        }
+
+        ret = sc2336_cam_get_info(&width, &height, &pixelformat, &frame_size);
+        if (ret == ESP_OK) {
+            break;
+        }
+
+        ESP_LOGW(TAG, "Camera info failed: %s, retrying in %d ms",
+                 esp_err_to_name(ret), CAMERA_INIT_RETRY_MS);
+        sc2336_cam_deinit();
+        vTaskDelay(pdMS_TO_TICKS(CAMERA_INIT_RETRY_MS));
     }
 
     ESP_LOGI(TAG, "Camera service started (%lux%lu fmt=0x%08lx frame=%u)",

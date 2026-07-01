@@ -1,5 +1,5 @@
 /*
- * Portrait threshold tuning page.
+ * Landscape threshold tuning page.
  */
 #include "lvgl.h"
 #include "service/app_state.h"
@@ -25,13 +25,13 @@ static lv_obj_t *s_margin_value;
 static lv_obj_t *s_status_label;
 static int s_selected_class = 6;
 
-static lv_obj_t *make_card(lv_obj_t *parent, int y, int h)
+static lv_obj_t *make_card_at(lv_obj_t *parent, int x, int y, int w, int h)
 {
     lv_obj_t *obj = lv_obj_create(parent);
     lv_obj_remove_style_all(obj);
     ui_theme_apply_card(obj);
-    lv_obj_set_pos(obj, PAGE_PAD, y);
-    lv_obj_set_size(obj, CARD_W, h);
+    lv_obj_set_pos(obj, x, y);
+    lv_obj_set_size(obj, w, h);
     return obj;
 }
 
@@ -133,7 +133,10 @@ void ui_settings_create(lv_obj_t *scr)
 
     ui_theme_create_toggle_btn(scr);
 
-    s_class_card = make_card(scr, 64, 132);
+    const int left_w = 360;
+    const int right_w = LV_HOR_RES - PAGE_PAD * 3 - left_w;
+
+    s_class_card = make_card_at(scr, PAGE_PAD, 64, left_w, 160);
     lv_obj_t *class_caption = lv_label_create(s_class_card);
     lv_label_set_text(class_caption, "Class");
     lv_obj_set_pos(class_caption, 16, 14);
@@ -141,7 +144,7 @@ void ui_settings_create(lv_obj_t *scr)
     lv_obj_set_style_text_color(class_caption, t->text_secondary, 0);
 
     s_selected_label = lv_label_create(s_class_card);
-    lv_obj_set_width(s_selected_label, CARD_W - 32);
+    lv_obj_set_width(s_selected_label, left_w - 32);
     lv_label_set_long_mode(s_selected_label, LV_LABEL_LONG_CLIP);
     lv_obj_set_pos(s_selected_label, 16, 44);
 
@@ -150,14 +153,18 @@ void ui_settings_create(lv_obj_t *scr)
         "Alarm\nCar horn\nKnocking\nClapping\nDog bark\nFootsteps\n"
         "Glass break\nDoorbell\nBaby crying\nEngine\nTraffic\nBackground");
     lv_dropdown_set_selected(s_dropdown, s_selected_class);
-    lv_obj_set_size(s_dropdown, CARD_W - 32, 42);
-    lv_obj_set_pos(s_dropdown, 16, 82);
+    lv_obj_set_size(s_dropdown, left_w - 32, 42);
+    lv_obj_set_pos(s_dropdown, 16, 96);
     lv_obj_set_style_text_font(s_dropdown, &lv_font_montserrat_24, 0);
     lv_obj_set_style_border_width(s_dropdown, 1, 0);
     lv_obj_set_style_radius(s_dropdown, 8, 0);
     lv_obj_add_event_cb(s_dropdown, dropdown_cb, LV_EVENT_VALUE_CHANGED, NULL);
 
-    s_threshold_card = make_card(scr, 216, 144);
+    s_threshold_card = make_card_at(scr,
+                                    PAGE_PAD * 2 + left_w,
+                                    64,
+                                    right_w,
+                                    160);
     lv_obj_t *threshold_label = lv_label_create(s_threshold_card);
     lv_label_set_text(threshold_label, "Confidence");
     lv_obj_set_pos(threshold_label, 16, 18);
@@ -167,12 +174,16 @@ void ui_settings_create(lv_obj_t *scr)
     lv_obj_align(s_threshold_value, LV_ALIGN_TOP_RIGHT, -16, 18);
     lv_obj_set_style_text_font(s_threshold_value, &lv_font_montserrat_28, 0);
     s_threshold_slider = lv_slider_create(s_threshold_card);
-    lv_obj_set_size(s_threshold_slider, CARD_W - 32, 26);
+    lv_obj_set_size(s_threshold_slider, right_w - 32, 26);
     lv_obj_align(s_threshold_slider, LV_ALIGN_BOTTOM_MID, 0, -20);
     lv_slider_set_range(s_threshold_slider, 40, 95);
     lv_obj_add_event_cb(s_threshold_slider, threshold_cb, LV_EVENT_VALUE_CHANGED, NULL);
 
-    s_margin_card = make_card(scr, 380, 144);
+    s_margin_card = make_card_at(scr,
+                                 PAGE_PAD,
+                                 244,
+                                 left_w,
+                                 160);
     lv_obj_t *margin_label = lv_label_create(s_margin_card);
     lv_label_set_text(margin_label, "Margin");
     lv_obj_set_pos(margin_label, 16, 18);
@@ -182,15 +193,19 @@ void ui_settings_create(lv_obj_t *scr)
     lv_obj_align(s_margin_value, LV_ALIGN_TOP_RIGHT, -16, 18);
     lv_obj_set_style_text_font(s_margin_value, &lv_font_montserrat_28, 0);
     s_margin_slider = lv_slider_create(s_margin_card);
-    lv_obj_set_size(s_margin_slider, CARD_W - 32, 26);
+    lv_obj_set_size(s_margin_slider, left_w - 32, 26);
     lv_obj_align(s_margin_slider, LV_ALIGN_BOTTOM_MID, 0, -20);
     lv_slider_set_range(s_margin_slider, 0, 35);
     lv_obj_add_event_cb(s_margin_slider, margin_cb, LV_EVENT_VALUE_CHANGED, NULL);
 
-    s_status_card = make_card(scr, LV_VER_RES - 140, 104);
+    s_status_card = make_card_at(scr,
+                                 PAGE_PAD * 2 + left_w,
+                                 244,
+                                 right_w,
+                                 160);
     s_status_label = lv_label_create(s_status_card);
     lv_label_set_text(s_status_label, "Swipe to return. Alerts jump to the face page.");
-    lv_obj_set_width(s_status_label, CARD_W - 32);
+    lv_obj_set_width(s_status_label, right_w - 32);
     lv_label_set_long_mode(s_status_label, LV_LABEL_LONG_WRAP);
     lv_obj_set_pos(s_status_label, 16, 20);
     lv_obj_set_style_text_font(s_status_label, &lv_font_montserrat_24, 0);

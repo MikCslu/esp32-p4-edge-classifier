@@ -5,6 +5,7 @@
 #include "service/audio_frame_bus.h"
 #include "service/event_service.h"
 #include "runtime/task_config.h"
+#include "esp_err.h"
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "esp_heap_caps.h"
@@ -13,6 +14,8 @@
 static const char *TAG = "AUDIO_INFERENCE";
 
 #include "models/audio_model.h"
+
+#define AUDIO_INFER_SLOW_WARN_MS    800
 
 static int16_t *alloc_audio_frame_buffer(void)
 {
@@ -55,11 +58,15 @@ void audio_inference_task(void *pvParameters)
     uint32_t processed_count = 0;
 
     while (1) {
-        ret = audio_frame_bus_read_window(buffer, AUDIO_WINDOW_SAMPLES, UINT32_MAX);
+        ret = audio_frame_bus_read_window(buffer,
+                                          AUDIO_WINDOW_SAMPLES,
+                                          UINT32_MAX);
         if (ret == ESP_ERR_INVALID_SIZE) {
+            vTaskDelay(pdMS_TO_TICKS(1));
             continue;
         }
         if (ret != ESP_OK) {
+            vTaskDelay(pdMS_TO_TICKS(10));
             continue;
         }
 
@@ -70,6 +77,13 @@ void audio_inference_task(void *pvParameters)
         audio_cls_srv_record_process_time((uint32_t)elapsed_ms,
                                           ret,
                                           ret == ESP_OK && result.triggered);
+        if (elapsed_ms > AUDIO_INFER_SLOW_WARN_MS) {
+            ESP_LOGW(TAG, "Slow audio inference: %lld ms status=%s class=%d confidence=%.3f",
+                     (long long)elapsed_ms,
+                     esp_err_to_name(ret),
+                     ret == ESP_OK ? result.class_id : -1,
+                     ret == ESP_OK ? (double)result.confidence : 0.0);
+        }
         processed_count++;
         if ((processed_count % 20) == 0 && ret == ESP_OK) {
             ESP_LOGI(TAG, "Audio result: class=%d confidence=%.3f time=%lld ms",

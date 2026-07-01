@@ -1,5 +1,5 @@
 /*
- * Portrait audio dashboard for the 480x800 Waveshare display.
+ * Landscape audio dashboard for the 800x480 Waveshare display.
  */
 #include "lvgl.h"
 #include "service/app_state.h"
@@ -8,7 +8,10 @@
 
 #define CLASS_COUNT 12
 #define PAGE_PAD    16
-#define BAR_W       (LV_HOR_RES - 190)
+#define BAR_X       112
+#define BAR_VALUE_W 42
+#define BAR_VALUE_X (LV_HOR_RES - PAGE_PAD * 2 - BAR_VALUE_W - 10)
+#define BAR_W       (BAR_VALUE_X - BAR_X - 10)
 
 static lv_obj_t *s_scr;
 static lv_obj_t *s_title;
@@ -145,14 +148,15 @@ void ui_main_create(lv_obj_t *scr)
 
     ui_theme_create_toggle_btn(scr);
 
-    s_last_card = make_card(scr, PAGE_PAD, 64, LV_HOR_RES - PAGE_PAD * 2, 108);
+    s_last_card = make_card(scr, PAGE_PAD, 58, 360, 108);
     s_last_name = lv_label_create(s_last_card);
     lv_obj_set_pos(s_last_name, 16, 18);
     s_last_meta = lv_label_create(s_last_card);
     lv_obj_set_pos(s_last_meta, 16, 62);
 
     int half = (LV_HOR_RES - PAGE_PAD * 3) / 2;
-    s_total_card = make_card(scr, PAGE_PAD, 188, half, 122);
+    (void)half;
+    s_total_card = make_card(scr, 392, 58, 180, 108);
     lv_obj_t *total_caption = lv_label_create(s_total_card);
     lv_label_set_text(total_caption, "Total");
     lv_obj_set_pos(total_caption, 14, 12);
@@ -160,19 +164,21 @@ void ui_main_create(lv_obj_t *scr)
     s_total_value = lv_label_create(s_total_card);
     lv_obj_set_pos(s_total_value, 14, 46);
 
-    s_top_card = make_card(scr, PAGE_PAD * 2 + half, 188, half, 122);
+    const int top_x = 588;
+    const int top_w = LV_HOR_RES - top_x - PAGE_PAD;
+    s_top_card = make_card(scr, top_x, 58, top_w, 108);
     s_top_name = lv_label_create(s_top_card);
-    lv_obj_set_width(s_top_name, half - 28);
+    lv_obj_set_width(s_top_name, top_w - 28);
     lv_label_set_long_mode(s_top_name, LV_LABEL_LONG_CLIP);
     lv_obj_set_pos(s_top_name, 14, 24);
     s_top_meta = lv_label_create(s_top_card);
-    lv_obj_set_width(s_top_meta, half - 28);
+    lv_obj_set_width(s_top_meta, top_w - 28);
     lv_label_set_long_mode(s_top_meta, LV_LABEL_LONG_CLIP);
     lv_obj_set_pos(s_top_meta, 14, 70);
 
-    s_bars_card = make_card(scr, PAGE_PAD, 326, LV_HOR_RES - PAGE_PAD * 2, 392);
+    s_bars_card = make_card(scr, PAGE_PAD, 184, LV_HOR_RES - PAGE_PAD * 2, 260);
     for (int i = 0; i < CLASS_COUNT; i++) {
-        int y = 14 + i * 31;
+        int y = 8 + i * 20;
         s_bar_labels[i] = lv_label_create(s_bars_card);
         lv_label_set_text(s_bar_labels[i], app_audio_class_name(i));
         lv_obj_set_width(s_bar_labels[i], 86);
@@ -181,21 +187,21 @@ void ui_main_create(lv_obj_t *scr)
 
         s_bar_tracks[i] = lv_obj_create(s_bars_card);
         lv_obj_remove_style_all(s_bar_tracks[i]);
-        lv_obj_set_size(s_bar_tracks[i], BAR_W, 12);
-        lv_obj_set_style_radius(s_bar_tracks[i], 6, 0);
+        lv_obj_set_size(s_bar_tracks[i], BAR_W, 8);
+        lv_obj_set_style_radius(s_bar_tracks[i], 4, 0);
         lv_obj_set_style_bg_opa(s_bar_tracks[i], LV_OPA_COVER, 0);
-        lv_obj_set_pos(s_bar_tracks[i], 104, y + 7);
+        lv_obj_set_pos(s_bar_tracks[i], BAR_X, y + 7);
 
         s_bar_fills[i] = lv_obj_create(s_bars_card);
         lv_obj_remove_style_all(s_bar_fills[i]);
-        lv_obj_set_size(s_bar_fills[i], 4, 12);
-        lv_obj_set_style_radius(s_bar_fills[i], 6, 0);
+        lv_obj_set_size(s_bar_fills[i], 4, 8);
+        lv_obj_set_style_radius(s_bar_fills[i], 4, 0);
         lv_obj_set_style_bg_opa(s_bar_fills[i], LV_OPA_COVER, 0);
-        lv_obj_set_pos(s_bar_fills[i], 104, y + 7);
+        lv_obj_set_pos(s_bar_fills[i], BAR_X, y + 7);
 
         s_bar_values[i] = lv_label_create(s_bars_card);
         lv_obj_set_width(s_bar_values[i], 38);
-        lv_obj_set_pos(s_bar_values[i], LV_HOR_RES - 88, y + 2);
+        lv_obj_set_pos(s_bar_values[i], BAR_VALUE_X, y + 2);
     }
 
     s_model_label = lv_label_create(scr);

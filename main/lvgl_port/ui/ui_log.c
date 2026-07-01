@@ -1,5 +1,5 @@
 /*
- * Portrait recognition timeline.
+ * Landscape recognition timeline.
  */
 #include "lvgl.h"
 #include "service/app_state.h"
@@ -8,9 +8,9 @@
 #include "esp_log.h"
 #include <stdio.h>
 
-#define MAX_ROWS 16
+#define MAX_ROWS 10
 #define PAGE_PAD 16
-#define ROW_H    40
+#define ROW_H    36
 
 static lv_obj_t *s_scr;
 static lv_obj_t *s_title;

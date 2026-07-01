@@ -64,3 +64,63 @@ target_add_binary_data(${COMPONENT_LIB}
     "${CMAKE_CURRENT_SOURCE_DIR}/models/espdet_pico_224_224_face.espdl"
     RENAME_TO "espdet_pico_224_224_face_espdl"
 )
+
+target_add_binary_data(${COMPONENT_LIB}
+    "${CMAKE_CURRENT_SOURCE_DIR}/assets/speech/hello.wav"
+    RENAME_TO "speech_hello_wav"
+)
+
+target_add_binary_data(${COMPONENT_LIB}
+    "${CMAKE_CURRENT_SOURCE_DIR}/assets/speech/morning.wav"
+    RENAME_TO "speech_morning_wav"
+)
+
+target_add_binary_data(${COMPONENT_LIB}
+    "${CMAKE_CURRENT_SOURCE_DIR}/assets/speech/welcome_back.wav"
+    RENAME_TO "speech_welcome_back_wav"
+)
+
+target_add_binary_data(${COMPONENT_LIB}
+    "${CMAKE_CURRENT_SOURCE_DIR}/assets/speech/see_you.wav"
+    RENAME_TO "speech_see_you_wav"
+)
+
+target_add_binary_data(${COMPONENT_LIB}
+    "${CMAKE_CURRENT_SOURCE_DIR}/assets/speech/thanks.wav"
+    RENAME_TO "speech_thanks_wav"
+)
+
+target_add_binary_data(${COMPONENT_LIB}
+    "${CMAKE_CURRENT_SOURCE_DIR}/assets/speech/help.wav"
+    RENAME_TO "speech_help_wav"
+)
+
+target_add_binary_data(${COMPONENT_LIB}
+    "${CMAKE_CURRENT_SOURCE_DIR}/assets/speech/wait.wav"
+    RENAME_TO "speech_wait_wav"
+)
+
+target_add_binary_data(${COMPONENT_LIB}
+    "${CMAKE_CURRENT_SOURCE_DIR}/assets/speech/ok.wav"
+    RENAME_TO "speech_ok_wav"
+)
+
+target_add_binary_data(${COMPONENT_LIB}
+    "${CMAKE_CURRENT_SOURCE_DIR}/assets/speech/sorry.wav"
+    RENAME_TO "speech_sorry_wav"
+)
+
+target_add_binary_data(${COMPONENT_LIB}
+    "${CMAKE_CURRENT_SOURCE_DIR}/assets/speech/busy.wav"
+    RENAME_TO "speech_busy_wav"
+)
+
+target_add_binary_data(${COMPONENT_LIB}
+    "${CMAKE_CURRENT_SOURCE_DIR}/assets/speech/later.wav"
+    RENAME_TO "speech_later_wav"
+)
+
+target_add_binary_data(${COMPONENT_LIB}
+    "${CMAKE_CURRENT_SOURCE_DIR}/assets/speech/need_help.wav"
+    RENAME_TO "speech_need_help_wav"
+)

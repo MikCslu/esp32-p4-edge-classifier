@@ -74,7 +74,7 @@ esp_err_t mipi_dsi_lcd_init(lv_display_t **disp)
         .panel_io = s_panel_io,
         .profile = {
             .interface = ESP_LV_ADAPTER_PANEL_IF_MIPI_DSI,
-            .rotation = ESP_LV_ADAPTER_ROTATE_0,
+            .rotation = ESP_LV_ADAPTER_ROTATE_90,
             .hor_res = BSP_LCD_H_RES,
             .ver_res = BSP_LCD_V_RES,
             .buffer_height = 20,
@@ -82,7 +82,7 @@ esp_err_t mipi_dsi_lcd_init(lv_display_t **disp)
             .enable_ppa_accel = false,
             .require_double_buffer = false,
         },
-        .tear_avoid_mode = ESP_LV_ADAPTER_TEAR_AVOID_MODE_NONE,
+        .tear_avoid_mode = ESP_LV_ADAPTER_TEAR_AVOID_MODE_TRIPLE_PARTIAL,
         .te_sync = ESP_LV_ADAPTER_TE_SYNC_DISABLED(),
     };
 
@@ -98,8 +98,8 @@ esp_err_t mipi_dsi_lcd_init(lv_display_t **disp)
         *disp = s_disp;
     }
 
-    ESP_LOGI(TAG, "Waveshare MIPI-DSI LCD registered without touch (%dx%d)",
-             BSP_LCD_H_RES, BSP_LCD_V_RES);
+    ESP_LOGI(TAG, "Waveshare MIPI-DSI LCD registered without touch (%dx%d landscape)",
+             BSP_LCD_V_RES, BSP_LCD_H_RES);
     return ESP_OK;
 }
 
@@ -151,9 +151,9 @@ void mipi_dsi_lcd_unlock(void)
 void mipi_dsi_lcd_get_resolution(uint16_t *h_res, uint16_t *v_res)
 {
     if (h_res) {
-        *h_res = BSP_LCD_H_RES;
+        *h_res = BSP_LCD_V_RES;
     }
     if (v_res) {
-        *v_res = BSP_LCD_V_RES;
+        *v_res = BSP_LCD_H_RES;
     }
 }
