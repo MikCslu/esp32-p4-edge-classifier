@@ -17,3 +17,4 @@ components/**/tests/
 components/**/examples/
 components/**/demos/
 components/**/docs/
+.cache/

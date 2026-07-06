@@ -1,5 +1,7 @@
 #include "lvgl_port/ui/ui_quick_panel.h"
 
+#include "app/display_app.h"
+#include "lvgl_port/ui/ui_emotion.h"
 #include "lvgl_port/ui/ui_theme.h"
 #include "service/alert_feedback_service.h"
 #include "service/app_config_service.h"
@@ -24,6 +26,65 @@ static lv_obj_t *s_theme_label;
 
 static const char *TAG = "QUICK_PANEL";
 
+static bool s_preview_paused;
+
+static void disable_shadow(lv_obj_t *obj)
+{
+    if (!obj) {
+        return;
+    }
+    lv_obj_set_style_shadow_width(obj, 0, LV_PART_MAIN);
+    lv_obj_set_style_shadow_width(obj, 0, LV_PART_INDICATOR);
+    lv_obj_set_style_shadow_width(obj, 0, LV_PART_KNOB);
+}
+
+static void pause_emotion_preview_if_needed(void)
+{
+    if (!s_preview_paused &&
+        display_app_is_ready() &&
+        display_app_get_current_page() == DISPLAY_PAGE_EMOTION) {
+        ui_emotion_pause_preview();
+        s_preview_paused = true;
+    }
+}
+
+static void resume_emotion_preview_if_needed(void)
+{
+    if (s_preview_paused &&
+        display_app_is_ready() &&
+        display_app_get_current_page() == DISPLAY_PAGE_EMOTION) {
+        ui_emotion_resume_preview();
+    }
+    s_preview_paused = false;
+}
+
+static void reset_panel_refs(void)
+{
+    s_overlay = NULL;
+    s_panel = NULL;
+    s_motor_switch = NULL;
+    s_motor_slider = NULL;
+    s_motor_value = NULL;
+    s_volume_slider = NULL;
+    s_volume_value = NULL;
+    s_theme_btn = NULL;
+    s_theme_label = NULL;
+}
+
+static void destroy_panel(bool async)
+{
+    lv_obj_t *old = s_overlay;
+    reset_panel_refs();
+    if (old) {
+        if (async) {
+            lv_obj_delete_async(old);
+        } else {
+            lv_obj_delete(old);
+        }
+    }
+    resume_emotion_preview_if_needed();
+}
+
 static lv_obj_t *make_label(lv_obj_t *parent, const char *text, int x, int y, const lv_font_t *font)
 {
     lv_obj_t *label = lv_label_create(parent);
@@ -39,6 +100,7 @@ static lv_obj_t *make_card(lv_obj_t *parent, int x, int y, int w, int h)
     lv_obj_t *card = lv_obj_create(parent);
     lv_obj_remove_style_all(card);
     ui_theme_apply_card(card);
+    disable_shadow(card);
     lv_obj_set_pos(card, x, y);
     lv_obj_set_size(card, w, h);
     return card;
@@ -56,6 +118,7 @@ static lv_obj_t *make_action_btn(lv_obj_t *parent, const char *text, int x, int 
     lv_obj_set_style_bg_opa(btn, LV_OPA_COVER, 0);
     lv_obj_set_style_border_width(btn, 1, 0);
     lv_obj_set_style_border_color(btn, t->card_border, 0);
+    disable_shadow(btn);
 
     lv_obj_t *label = lv_label_create(btn);
     lv_label_set_text(label, text);
@@ -176,6 +239,7 @@ static void create_panel(void)
     make_label(motor_card, "Vibration", 16, 12, &lv_font_montserrat_24);
     s_motor_switch = lv_switch_create(motor_card);
     lv_obj_set_size(s_motor_switch, 66, 34);
+    disable_shadow(s_motor_switch);
     lv_obj_align(s_motor_switch, LV_ALIGN_TOP_RIGHT, -16, 14);
     lv_obj_add_event_cb(s_motor_switch, motor_switch_cb, LV_EVENT_VALUE_CHANGED, NULL);
 
@@ -191,6 +255,7 @@ static void create_panel(void)
     lv_obj_set_style_bg_color(s_motor_slider, t->slider_track, LV_PART_MAIN);
     lv_obj_set_style_bg_color(s_motor_slider, t->accent, LV_PART_INDICATOR);
     lv_obj_set_style_bg_color(s_motor_slider, t->accent, LV_PART_KNOB);
+    disable_shadow(s_motor_slider);
     lv_obj_add_event_cb(s_motor_slider, motor_slider_cb, LV_EVENT_VALUE_CHANGED, NULL);
     lv_obj_add_event_cb(s_motor_slider, motor_slider_cb, LV_EVENT_RELEASED, NULL);
 
@@ -208,6 +273,7 @@ static void create_panel(void)
     lv_obj_set_style_bg_color(s_volume_slider, t->slider_track, LV_PART_MAIN);
     lv_obj_set_style_bg_color(s_volume_slider, t->accent, LV_PART_INDICATOR);
     lv_obj_set_style_bg_color(s_volume_slider, t->accent, LV_PART_KNOB);
+    disable_shadow(s_volume_slider);
     lv_obj_add_event_cb(s_volume_slider, volume_slider_cb, LV_EVENT_VALUE_CHANGED, NULL);
     lv_obj_add_event_cb(s_volume_slider, volume_slider_cb, LV_EVENT_RELEASED, NULL);
 
@@ -227,6 +293,7 @@ static void create_panel(void)
 
 void ui_quick_panel_show(void)
 {
+    pause_emotion_preview_if_needed();
     if (s_overlay) {
         sync_values();
         lv_obj_clear_flag(s_overlay, LV_OBJ_FLAG_HIDDEN);
@@ -238,9 +305,12 @@ void ui_quick_panel_show(void)
 
 void ui_quick_panel_hide(void)
 {
-    if (s_overlay) {
-        lv_obj_add_flag(s_overlay, LV_OBJ_FLAG_HIDDEN);
-    }
+    destroy_panel(true);
+}
+
+void ui_quick_panel_close_now(void)
+{
+    destroy_panel(false);
 }
 
 bool ui_quick_panel_is_open(void)
@@ -252,15 +322,7 @@ void ui_quick_panel_refresh(void)
 {
     if (!s_overlay) return;
     lv_obj_t *old = s_overlay;
-    s_overlay = NULL;
-    s_panel = NULL;
-    s_motor_switch = NULL;
-    s_motor_slider = NULL;
-    s_motor_value = NULL;
-    s_volume_slider = NULL;
-    s_volume_value = NULL;
-    s_theme_btn = NULL;
-    s_theme_label = NULL;
+    reset_panel_refs();
     lv_obj_delete(old);
     create_panel();
 }
