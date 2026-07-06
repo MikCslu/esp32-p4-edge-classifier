@@ -78,11 +78,11 @@ esp_err_t mipi_dsi_lcd_init(lv_display_t **disp)
             .hor_res = BSP_LCD_H_RES,
             .ver_res = BSP_LCD_V_RES,
             .buffer_height = 20,
-            .use_psram = false,
+            .use_psram = true,
             .enable_ppa_accel = false,
             .require_double_buffer = false,
         },
-        .tear_avoid_mode = ESP_LV_ADAPTER_TEAR_AVOID_MODE_TRIPLE_PARTIAL,
+        .tear_avoid_mode = ESP_LV_ADAPTER_TEAR_AVOID_MODE_DOUBLE_FULL,
         .te_sync = ESP_LV_ADAPTER_TE_SYNC_DISABLED(),
     };
 

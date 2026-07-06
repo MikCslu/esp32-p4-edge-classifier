@@ -11,6 +11,7 @@
 #include "app/display_app.h"
 #include "lvgl_port/ui/ui_emotion.h"
 #include "lvgl_port/ui/ui_notify.h"
+#include "lvgl_port/ui/ui_quick_panel.h"
 #include "esp_log.h"
 #include <stdio.h>
 
@@ -35,6 +36,9 @@ void ui_task(void *pvParameters)
                     continue;
                 }
                 if (mipi_dsi_lcd_lock(1000)) {
+                    if (ui_quick_panel_is_open()) {
+                        ui_quick_panel_close_now();
+                    }
                     app_state_record_audio(&evt.audio_result, evt.timestamp_ms);
                     bool attention = app_audio_class_needs_attention(evt.audio_result.class_id);
                     ESP_ERROR_CHECK_WITHOUT_ABORT(history_record_audio(&evt.audio_result,
@@ -68,6 +72,9 @@ void ui_task(void *pvParameters)
                 }
             } else if (evt.type == EVENT_VISUAL_CLASSIFICATION) {
                 if (mipi_dsi_lcd_lock(1000)) {
+                    if (ui_quick_panel_is_open()) {
+                        ui_quick_panel_close_now();
+                    }
                     const visual_cls_result_t *result = &evt.visual_result;
                     if (display_app_get_current_page() == DISPLAY_PAGE_EMOTION) {
                         ui_emotion_set_by_visual(result->emotion_id,
