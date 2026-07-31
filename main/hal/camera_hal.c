@@ -61,6 +61,8 @@ static esp_err_t cam_deinit(void)
     return ESP_OK;
 }
 
+/* 相机 HAL 占位：真实取流走 camera_service（esp_video），
+ * 此接口保留 init/deinit 路径，保证硬件抽象完整。 */
 static const camera_hal_t hal = {
     .init = cam_init,
     .capture = cam_capture,

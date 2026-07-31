@@ -46,6 +46,7 @@ esp_err_t gt911_touch_init(void)
     return ESP_OK;
 }
 
+/* 读触摸点：委托 esp_lcd_touch 轮询控制器，返回最多 max_points 个点 */
 esp_err_t gt911_touch_read(gt911_point_t *points, uint8_t *count, uint8_t max_points)
 {
     if (!s_tp || !s_initialized) {

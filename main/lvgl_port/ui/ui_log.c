@@ -8,7 +8,7 @@
 #include "esp_log.h"
 #include <stdio.h>
 
-#define MAX_ROWS 10
+#define MAX_ROWS 10   /* 一屏最多显示 10 条历史记录 */
 #define PAGE_PAD 16
 #define ROW_H    36
 
@@ -17,13 +17,17 @@ static lv_obj_t *s_title;
 static lv_obj_t *s_clear_btn;
 static lv_obj_t *s_empty;
 static lv_obj_t *s_panel;
+/* 预创建的行对象池：固定创建，刷新时只改内容/显隐，
+ * 避免反复创建销毁控件（嵌入式 UI 的性能准则）。 */
 static lv_obj_t *s_rows[MAX_ROWS];
 static lv_obj_t *s_dot[MAX_ROWS];
 static lv_obj_t *s_name[MAX_ROWS];
 static lv_obj_t *s_meta[MAX_ROWS];
 
+/* 刷新历史列表：从 NVS 读取最近记录，填进预创建的行 */
 void ui_log_refresh(void);
 
+/* 每个音频类别给一个专属颜色（用于圆点和文字） */
 static lv_color_t class_color(int class_id)
 {
     const ui_theme_t *t = ui_theme_get();
@@ -50,6 +54,7 @@ static void refresh_theme(void)
     }
 }
 
+/* "Clear" 按钮回调：清空 NVS 历史 + 内存统计 */
 static void clear_cb(lv_event_t *e)
 {
     (void)e;
@@ -58,6 +63,7 @@ static void clear_cb(lv_event_t *e)
     ui_log_refresh();
 }
 
+/* 刷新历史列表：从 NVS 读取最近记录，填进预创建的行 */
 void ui_log_refresh(void)
 {
     const ui_theme_t *t = ui_theme_get();
@@ -83,6 +89,7 @@ void ui_log_refresh(void)
 
         const history_record_t *item = &records[i];
         lv_obj_clear_flag(s_rows[i], LV_OBJ_FLAG_HIDDEN);
+        /* 斑马纹：奇数行用 bar_bg 颜色，偶数行用 card_bg */
         lv_obj_set_style_bg_color(s_rows[i], (i % 2) ? t->bar_bg : t->card_bg, 0);
         lv_obj_set_style_bg_color(s_dot[i], class_color(item->class_id), 0);
 

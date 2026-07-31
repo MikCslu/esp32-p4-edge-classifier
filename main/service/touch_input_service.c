@@ -11,6 +11,23 @@
 
 static const char *TAG = "TOUCH_INPUT";
 
+/*
+ * 触摸输入服务（FreeRTOS 任务 + 临界区 + LVGL indev，面试重点）
+ * ====================================================
+ * 双角色设计：
+ *  1) touch_input_task：独立任务，每 20ms 轮询 GT911 触摸屏，
+ *     把最新坐标写进 s_cache（用自旋锁保护，因为会被两个上下文访问）；
+ *  2) touch_lvgl_read_cb：LVGL 注册的回调，渲染循环每次刷新时调用它
+ *     读取坐标，喂给 LVGL 事件系统（点击/滑动/长按都由此产生）。
+ *
+ * 为什么用自旋锁(portMUX)而不是互斥锁？
+ *  - 临界区极短（拷贝 3 个字段），且可能被 LVGL 高优先级上下文调用；
+ *  - portENTER_CRITICAL 会关本地中断，适合这种微秒级共享数据保护。
+ *
+ * 坐标变换：GT911 物理坐标系(竖屏 480x800) -> LVGL 横屏(800x480)，
+ * 即 (x,y) -> (y, 479-x)，对应 DSI 面板旋转 90 度。
+ */
+
 #define TOUCH_INPUT_TASK_STACK 3072
 #define TOUCH_INPUT_TASK_PRIO  2
 #define TOUCH_INPUT_TASK_CORE  1
@@ -24,26 +41,32 @@ typedef struct {
     uint32_t sequence;
 } touch_cache_t;
 
+/* 自旋锁：保护 s_cache（触摸任务写 / LVGL 回调读） */
 static portMUX_TYPE s_cache_lock = portMUX_INITIALIZER_UNLOCKED;
 static touch_cache_t s_cache;
 static lv_indev_t *s_indev;
 static TaskHandle_t s_task;
 static bool s_started;
 
+/* LVGL 输入设备回调：LVGL 每次刷新前调用它取触摸数据。
+ * 注意运行在 LVGL 渲染上下文里，不能阻塞，所以只做加锁拷贝。 */
 static void touch_lvgl_read_cb(lv_indev_t *indev, lv_indev_data_t *data)
 {
     (void)indev;
 
     touch_cache_t cache;
+    /* 临界区：关中断保护共享数据（微秒级，可接受） */
     portENTER_CRITICAL(&s_cache_lock);
     cache = s_cache;
     portEXIT_CRITICAL(&s_cache_lock);
 
     data->point.x = (lv_coord_t)cache.x;
     data->point.y = (lv_coord_t)cache.y;
+    /* LVGL 据此状态机产生点击/释放/滑动事件 */
     data->state = cache.pressed ? LV_INDEV_STATE_PRESSED : LV_INDEV_STATE_RELEASED;
 }
 
+/* 触摸任务写入共享缓存（带坐标旋转到横屏） */
 static void touch_cache_update(bool pressed, uint16_t x, uint16_t y)
 {
     if (pressed) {
@@ -53,6 +76,7 @@ static void touch_cache_update(bool pressed, uint16_t x, uint16_t y)
         y = ly;
     }
 
+    /* 临界区：关中断保护共享数据（微秒级，可接受） */
     portENTER_CRITICAL(&s_cache_lock);
     s_cache.pressed = pressed;
     if (pressed) {
@@ -71,6 +95,7 @@ static void touch_input_task(void *arg)
 
     ESP_LOGI(TAG, "Touch polling task started");
 
+    /* 轮询循环：20ms 一次，触摸是低速设备，无需中断驱动 */
     while (true) {
         touch_point_t points[1] = {0};
         uint8_t count = 0;

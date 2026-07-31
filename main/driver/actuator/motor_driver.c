@@ -12,13 +12,17 @@ static const char *TAG = "MOTOR_DRV";
 #define MOTOR_LEDC_MODE         LEDC_LOW_SPEED_MODE
 #define MOTOR_LEDC_TIMER        LEDC_TIMER_2
 #define MOTOR_LEDC_CHANNEL      LEDC_CHANNEL_6
+/* 马达驱动：GPIO 方向控制(AIN1/AIN2) + LEDC PWM 调速(PWMA)，
+ * 5kHz PWM + 12bit 分辨率，duty 0~4095 映射 0~100% 力度。 */
 #define MOTOR_PWM_FREQ_HZ       5000
 #define MOTOR_PWM_RESOLUTION    LEDC_TIMER_12_BIT
 #define MOTOR_PWM_MAX_DUTY      ((1U << 12) - 1U)
 
 static bool s_initialized;
+/* 可用标志：初始化失败时系统继续运行，只是振动反馈不可用 */
 static bool s_available;
 
+/* 初始化 GPIO + LEDC（ESP-IDF 标准外设配置流程） */
 esp_err_t motor_driver_init(void)
 {
     if (s_initialized) {
@@ -81,6 +85,7 @@ bool motor_driver_is_available(void)
     return s_available;
 }
 
+/* 设置马达力度（0~100%）：百分比换算成 PWM duty */
 void motor_driver_set_power(uint8_t percent)
 {
     if (!s_available) {
@@ -96,6 +101,7 @@ void motor_driver_set_power(uint8_t percent)
     ledc_update_duty(MOTOR_LEDC_MODE, MOTOR_LEDC_CHANNEL);
 }
 
+/* 停止马达：duty 清零 + 方向引脚全部拉低 */
 void motor_driver_stop(void)
 {
     if (!s_available) {

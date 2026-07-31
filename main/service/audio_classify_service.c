@@ -240,6 +240,7 @@ static uint64_t s_process_time_sum_ms = 0;
 /*  Pre-computation helpers                                            */
 /* ================================================================== */
 
+/* 汉宁窗：给每帧时域数据加窗，抑制 FFT 频谱泄漏 */
 static void _init_hann(void)
 {
     for (int i = 0; i < WIN_LENGTH; i++) {
@@ -247,6 +248,7 @@ static void _init_hann(void)
     }
 }
 
+/* 赫兹 <-> Mel 刻度换算（Slaney 公式，与 librosa 训练时一致） */
 static float _hz_to_mel_slaney(float hz)
 {
     const float f_sp = 200.0f / 3.0f;
@@ -277,6 +279,8 @@ static float _mel_to_hz_slaney(float mel)
     return hz;
 }
 
+/* 构建 Mel 滤波器组：128 个三角滤波器，把 257 个 FFT bin 压缩成 128 个 Mel 带。
+ * 人耳对低频更敏感，Mel 刻度是"非线性频率"，模型输入用它更有效。 */
 static void _init_mel_filterbank(void)
 {
     /* Match librosa's default mel filterbank: htk=False, norm='slaney'. */
@@ -331,6 +335,7 @@ static void _init_mel_filterbank(void)
     }
 }
 
+/* 预计算 FFT 旋转因子和位反转表（运行时只查表，不做三角函数运算） */
 static void _init_fft_tables(void)
 {
     /* Twiddle factors for N_FFT-point FFT */
@@ -355,6 +360,7 @@ static void _init_fft_tables(void)
     }
 }
 
+/* 懒加载：首次处理音频时才构建这些静态大表（省启动时间） */
 static void _ensure_tables(void)
 {
     if (s_tables_ready) return;
@@ -370,6 +376,8 @@ static void _ensure_tables(void)
 /*  512-point Cooley-Tukey FFT (in-place, radix-2)                    */
 /* ================================================================== */
 
+/* 512 点 Cooley-Tukey 快速傅里叶变换（就地、基 2）。
+ * 把时域信号变到频域，得到每个频率成分的幅度。 */
 static void _fft_512(float *real, float *imag)
 {
     /* Bit-reversal permutation */
@@ -424,6 +432,8 @@ static void _fft_512(float *real, float *imag)
  * stride, zero-pads to N_FFT, applies Hann window, computes power
  * spectrum, applies the mel filterbank, and takes log.
  */
+/* 核心预处理：滑动 512 点窗(25ms) -> 加窗 -> FFT -> 功率谱 -> Mel 滤波 -> log，
+ * 输出 100(帧) x 128(Mel带) 的频谱图，即神经网络的输入。 */
 static void _compute_mel_spectrogram(const float *audio, size_t offset,
                                      float mel_out[N_FRAMES][N_MELS])
 {
@@ -483,6 +493,7 @@ static void _compute_mel_spectrogram(const float *audio, size_t offset,
 /*  Softmax                                                            */
 /* ================================================================== */
 
+/* Softmax：把网络原始输出(logits)转成 0~1 的概率分布 */
 static void _softmax(const float *input, float *output, int n)
 {
     float max_val = input[0];
@@ -512,6 +523,7 @@ static void _softmax(const float *input, float *output, int n)
  * AUDIO_FRAME_SAMPLES are discarded to maintain a sliding window
  * of TOTAL_NEEDED samples.
  */
+/* 把新来的 int16 PCM 追加进滑动缓冲（先移位再拷贝） */
 static void _audio_accumulate(const int16_t *samples, size_t n)
 {
     if (n == 0) return;
@@ -547,6 +559,7 @@ static void _audio_accumulate(const int16_t *samples, size_t n)
     }
 }
 
+/* 语音活动检测(VAD)：RMS/峰值超阈值才推理，安静时跳过，省 CPU */
 static bool _audio_frame_is_active(const int16_t *samples, size_t n,
                                    float *rms_out, int *peak_out)
 {
@@ -573,6 +586,7 @@ static bool _audio_frame_is_active(const int16_t *samples, size_t n,
     return rms >= ACTIVE_RMS_THRESH || peak >= ACTIVE_PEAK_THRESH;
 }
 
+/* 窗口滑动：把缓冲整体前移一个 frame，为下一帧腾位置 */
 static void _slide_audio_window(void)
 {
     if (s_ring_count > AUDIO_FRAME_SAMPLES) {
@@ -763,6 +777,7 @@ static esp_err_t _run_inference(float mel_spec[N_FRAMES][N_MELS],
 /*  Public API                                                         */
 /* ================================================================== */
 
+/* 初始化：加载 ESP-DL 模型（fbs 格式） + 预计算 DSP 表 + 从 NVS 恢复阈值 */
 esp_err_t audio_cls_srv_init(const char *model_data, size_t model_len)
 {
     if (!model_data || model_len == 0) {
@@ -835,6 +850,14 @@ esp_err_t audio_cls_srv_init(const char *model_data, size_t model_len)
     return ESP_OK;
 }
 
+/* 一次完整处理（面试重点，音频链路核心）：
+ * 1) 累积新帧 + 滑动窗口；
+ * 2) VAD 门控：安静帧直接跳过推理（省电）；
+ * 3) 计算 1 秒窗口的 Mel 频谱图；
+ * 4) ESP-DL 推理 + softmax；
+ * 5) 置信度阈值 + 每类专用阈值 + 消抖(连续 N 帧) + 冷却时间；
+ * 6) 命中才置 triggered=true，由调用方发事件。
+ */
 esp_err_t audio_cls_srv_process(const int16_t *audio_frame, size_t frames,
                                 cls_result_t *result)
 {

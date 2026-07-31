@@ -6,13 +6,15 @@
 #include "lvgl_port/ui/ui_theme.h"
 #include <stdio.h>
 
-#define CLASS_COUNT 12
+#define CLASS_COUNT 12   /* 音频模型输出类别数（12 类） */
 #define PAGE_PAD    16
 #define BAR_X       112
 #define BAR_VALUE_W 42
 #define BAR_VALUE_X (LV_HOR_RES - PAGE_PAD * 2 - BAR_VALUE_W - 10)
 #define BAR_W       (BAR_VALUE_X - BAR_X - 10)
 
+/* 页面级静态对象指针：Create 时赋值，Refresh 时使用。
+ * LVGL 对象由显示驱动管理生命周期，这里只保存引用。 */
 static lv_obj_t *s_scr;
 static lv_obj_t *s_title;
 static lv_obj_t *s_last_card;
@@ -30,6 +32,8 @@ static lv_obj_t *s_bar_fills[CLASS_COUNT];
 static lv_obj_t *s_bar_values[CLASS_COUNT];
 static lv_obj_t *s_model_label;
 
+/* 创建"卡片"容器：LVGL 里容器就是普通 lv_obj，
+ * 通过设置位置/大小/主题样式来模拟卡片效果。 */
 static lv_obj_t *make_card(lv_obj_t *parent, int x, int y, int w, int h)
 {
     lv_obj_t *obj = lv_obj_create(parent);
@@ -40,6 +44,7 @@ static lv_obj_t *make_card(lv_obj_t *parent, int x, int y, int w, int h)
     return obj;
 }
 
+/* 统一设置文字字体和颜色（简化样板代码） */
 static void apply_text(lv_obj_t *obj, const lv_font_t *font, lv_color_t color)
 {
     if (!obj) return;
@@ -60,6 +65,7 @@ static void refresh_theme(void)
     if (s_model_label) apply_text(s_model_label, &lv_font_montserrat_14, t->text_muted);
 }
 
+/* 找出计数最高的类别 = "最常听到的声音" */
 static int find_top_class(const app_audio_stats_t *stats)
 {
     int best = -1;
@@ -73,6 +79,10 @@ static int find_top_class(const app_audio_stats_t *stats)
     return best;
 }
 
+/* 数据刷新入口：从 app_state 读统计，更新所有控件。
+ * 由 display_app_refresh_page() 在事件到来时调用。
+ * 面试点：LVGL 刷新分"对象属性更新"和"重绘"两步，
+ * 设置文本/宽度后调用 lv_obj_invalidate 或让渲染循环自动检测。 */
 void ui_main_refresh(void)
 {
     const app_audio_stats_t *stats = app_state_get_audio();
@@ -115,17 +125,20 @@ void ui_main_refresh(void)
         apply_text(s_top_meta, &lv_font_montserrat_24, t->text_muted);
     }
 
+    /* 以最大计数为基准归一化柱状图宽度 */
     uint32_t max_count = 1;
     for (int i = 0; i < CLASS_COUNT; i++) {
         if (stats->class_counts[i] > max_count) max_count = stats->class_counts[i];
     }
 
     for (int i = 0; i < CLASS_COUNT; i++) {
+        /* 柱状图填充宽度 = 计数比例 * 最大宽度（至少 4px 保证可见） */
         int fill = (int)((float)stats->class_counts[i] / (float)max_count * (float)BAR_W);
         if (fill < 4 && stats->class_counts[i] > 0) fill = 4;
         if (fill < 4) fill = 4;
         lv_obj_set_width(s_bar_fills[i], fill);
         lv_obj_set_style_bg_color(s_bar_tracks[i], t->bar_bg, 0);
+        /* 需要关注的类别用红色(danger)，其他用主题强调色 */
         lv_obj_set_style_bg_color(s_bar_fills[i],
                                   app_audio_class_needs_attention(i) ? t->danger : t->accent, 0);
         apply_text(s_bar_labels[i], &lv_font_montserrat_14, t->text_secondary);
@@ -135,6 +148,8 @@ void ui_main_refresh(void)
     }
 }
 
+/* 创建页面：所有控件只创建一次（Create），之后只刷新数据（Refresh）。
+ * 这是嵌入式 UI 的经典模式：避免每帧重建控件导致内存碎片。 */
 void ui_main_create(lv_obj_t *scr)
 {
     s_scr = scr;
@@ -146,6 +161,7 @@ void ui_main_create(lv_obj_t *scr)
     lv_obj_set_pos(s_title, PAGE_PAD, 18);
     apply_text(s_title, &lv_font_montserrat_28, t->text_primary);
 
+    /* 每个页面右上角都有深色/浅色主题切换按钮 */
     ui_theme_create_toggle_btn(scr);
 
     s_last_card = make_card(scr, PAGE_PAD, 58, 360, 108);

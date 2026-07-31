@@ -5,6 +5,13 @@
 
 static const char *TAG = "SPEECH_SVC";
 
+/*
+ * 语音服务：把 13 段预录 WAV（问候/求助/告别等）内嵌进 flash，
+ * 通过链接器符号(_binary_xxx_wav_start/end)直接取地址播放。
+ * 好处：无需文件系统、零解码（WAV 是裸 PCM）、启动即用。
+ * 发音请求转给 audio_playback_service 异步播放。
+ */
+
 extern const uint8_t speech_hello_wav_start[] asm("_binary_hello_wav_start");
 extern const uint8_t speech_hello_wav_end[] asm("_binary_hello_wav_end");
 extern const uint8_t speech_morning_wav_start[] asm("_binary_morning_wav_start");
@@ -30,6 +37,7 @@ extern const uint8_t speech_later_wav_end[] asm("_binary_later_wav_end");
 extern const uint8_t speech_need_help_wav_start[] asm("_binary_need_help_wav_start");
 extern const uint8_t speech_need_help_wav_end[] asm("_binary_need_help_wav_end");
 
+/* 语音片段表项：起始/结束地址 + 名称 */
 typedef struct {
     const uint8_t *start;
     const uint8_t *end;

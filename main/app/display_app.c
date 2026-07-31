@@ -9,8 +9,10 @@
 #include "freertos/task.h"
 
 static const char *TAG = "DISPLAY_APP";
+/* 页面切换动画时长：0 = 立即切换（省 CPU，嵌入式 UI 常用） */
 #define DISPLAY_SWITCH_ANIM_MS 0
 
+/* 当前显示页索引 + 5 个全屏页面对象数组 */
 static int s_current_page = DISPLAY_PAGE_MAIN;
 static lv_obj_t *s_pages[DISPLAY_PAGE_COUNT];
 static bool s_init_done = false;
@@ -49,6 +51,10 @@ void display_app_refresh_current(void)
     display_app_refresh_page(s_current_page);
 }
 
+/* 页面切换核心函数（LVGL 重点概念）：
+ *  - 每个页面是一个独立 lv_obj_t 屏幕对象(screen)；
+ *  - lv_scr_load_anim() 把新屏幕挂到显示驱动上并触发切换动画；
+ *  - 切换前先刷新目标页数据，并管理相机预览的暂停/恢复（省 CPU）。 */
 static void _switch_page_anim(int page_idx, lv_screen_load_anim_t anim)
 {
     if (page_idx < 0 || page_idx >= DISPLAY_PAGE_COUNT) {
@@ -60,6 +66,7 @@ static void _switch_page_anim(int page_idx, lv_screen_load_anim_t anim)
 
     display_app_refresh_page(page_idx);
 
+    /* 相机预览只在"表情页"工作：切走就暂停定时器，省 CPU */
     /* Manage camera preview: only active on emotion page */
     if (s_current_page == DISPLAY_PAGE_EMOTION) ui_emotion_pause_preview();
     if (page_idx == DISPLAY_PAGE_EMOTION) ui_emotion_resume_preview();
@@ -70,6 +77,10 @@ static void _switch_page_anim(int page_idx, lv_screen_load_anim_t anim)
     ESP_LOGI(TAG, "Switched to page %d", page_idx);
 }
 
+/* LVGL 手势事件回调：每个页面都注册了 LV_EVENT_GESTURE。
+ *  - 上滑 -> 打开快捷控制面板；
+ *  - 左滑/右滑 -> 循环切换页面。
+ * 手势由 LVGL 输入设备（触摸）驱动，通过事件系统分发到这里。 */
 static void _gesture_event_cb(lv_event_t *e)
 {
     (void)e;
@@ -90,6 +101,7 @@ static void _gesture_event_cb(lv_event_t *e)
     }
 }
 
+/* 初始化所有页面（必须在拿到 LVGL 锁之后调用！） */
 void display_app_init(void)
 {
     if (s_init_done) {
@@ -102,6 +114,7 @@ void display_app_init(void)
         return;
     }
 
+    /* 等 LVGL 锁：初始化也要遵守"先锁后操作"的规则 */
     bool locked = false;
     for (int i = 0; i < 20; i++) {
         if (mipi_dsi_lcd_lock(1000)) {
@@ -117,14 +130,18 @@ void display_app_init(void)
     }
 
     ESP_LOGI(TAG, "Creating UI pages");
+    /* 初始化主题（深色/浅色，从 NVS 读取用户选择） */
     ui_theme_init();
 
+    /* 逐个创建页面：每个页面 = 一个全屏 lv_obj（screen） */
     for (int i = 0; i < DISPLAY_PAGE_COUNT; i++) {
+        /* lv_obj_create(NULL) 创建的是"屏幕"对象（父为 NULL = 顶级对象） */
         s_pages[i] = lv_obj_create(NULL);
         lv_obj_set_size(s_pages[i], LV_HOR_RES, LV_VER_RES);
         lv_obj_set_style_border_width(s_pages[i], 0, 0);
         lv_obj_set_style_pad_all(s_pages[i], 0, 0);
         lv_obj_clear_flag(s_pages[i], LV_OBJ_FLAG_SCROLLABLE);
+        /* 每页都注册手势回调，实现全局滑动导航 */
         lv_obj_add_event_cb(s_pages[i], _gesture_event_cb, LV_EVENT_GESTURE, NULL);
 
         switch (i) {
@@ -148,10 +165,12 @@ void display_app_init(void)
         }
     }
 
+    /* 默认显示表情页（大眼睛交互界面），并标记为当前页 */
     lv_scr_load(s_pages[DISPLAY_PAGE_EMOTION]);
     lv_obj_invalidate(s_pages[DISPLAY_PAGE_EMOTION]);
     s_current_page = DISPLAY_PAGE_EMOTION;
 
+    /* 页面创建完成后才启动 LVGL 渲染循环（esp_lv_adapter_start） */
     esp_err_t start_ret = mipi_dsi_lcd_start();
     if (start_ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to start LVGL rendering: %d", start_ret);

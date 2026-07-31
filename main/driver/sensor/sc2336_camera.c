@@ -55,6 +55,8 @@ static SemaphoreHandle_t s_v4l2_lock = NULL;
 /* ───────────────────────────────────────────── */
 /*  Init                                          */
 /* ───────────────────────────────────────────── */
+/* 初始化：启动 MIPI-CSI/BSP 管线，open /dev/video0，
+ * 申请 3 个 mmap 缓冲区，配置 1024x600 RAW8 30fps。 */
 esp_err_t sc2336_cam_init(void)
 {
     if (s_fd >= 0) {
@@ -222,6 +224,8 @@ esp_err_t sc2336_cam_get_info(uint32_t *width, uint32_t *height,
     return ESP_OK;
 }
 
+/* 取一帧：DQBUF 从驱动队列拿已填好的缓冲（引用，不拷贝），
+ * 用完必须 release 归还。 */
 esp_err_t sc2336_cam_acquire_frame(sc2336_frame_ref_t *out)
 {
     if (!out) {
@@ -257,6 +261,7 @@ esp_err_t sc2336_cam_acquire_frame(sc2336_frame_ref_t *out)
     return ESP_OK;
 }
 
+/* 归还帧缓冲：QBUF 交回驱动循环利用 */
 esp_err_t sc2336_cam_release_frame(int index)
 {
     if (s_fd < 0 || !s_streaming) {

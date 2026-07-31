@@ -14,9 +14,11 @@
 #include "esp_log.h"
 
 static const char *TAG = "DISP_HAL";
+/* 缓存 LVGL display 句柄：初始化后供 UI 层取用 */
 static lv_display_t *disp = NULL;
 static bool initialized = false;
 
+/* HAL 初始化：真正的工作委托给 mipi_dsi_lcd_init()（BSP + LVGL 适配器） */
 static esp_err_t disp_init(const display_config_t *cfg, lv_display_t **out_disp)
 {
     (void)cfg;
@@ -44,6 +46,8 @@ static esp_err_t disp_init(const display_config_t *cfg, lv_display_t **out_disp)
 /**
  * LVGL flush is handled internally by esp_lvgl_port — no-op to satisfy the interface.
  */
+/* LVGL flush 回调：这里由 esp_lv_adapter 内部接管，所以是 no-op。
+ * 正常裸 LVGL 移植里，这个函数负责把 color_map 通过 SPI/DSI 写到屏上。 */
 static esp_err_t disp_flush(int16_t x1, int16_t y1, int16_t x2, int16_t y2,
                             const lv_color_t *color_map)
 {
@@ -56,6 +60,7 @@ static esp_err_t disp_backlight(uint8_t brightness)
     return mipi_dsi_lcd_backlight(brightness);
 }
 
+/* HAL 实例：函数指针表（结构体打包接口），业务层不感知具体驱动 */
 static const display_hal_t hal = {
     .init = disp_init,
     .flush = disp_flush,

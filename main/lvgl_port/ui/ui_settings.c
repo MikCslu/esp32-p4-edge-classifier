@@ -23,6 +23,7 @@ static lv_obj_t *s_margin_slider;
 static lv_obj_t *s_threshold_value;
 static lv_obj_t *s_margin_value;
 static lv_obj_t *s_status_label;
+/* 默认选中"玻璃破碎"类别（第 6 类） */
 static int s_selected_class = 6;
 
 static lv_obj_t *make_card_at(lv_obj_t *parent, int x, int y, int w, int h)
@@ -35,6 +36,8 @@ static lv_obj_t *make_card_at(lv_obj_t *parent, int x, int y, int w, int h)
     return obj;
 }
 
+/* 滑条样式：LVGL 控件分多个 PART（MAIN 轨道 / INDICATOR 填充 / KNOB 旋钮），
+ * 分别设置样式即可自定义外观。 */
 static void style_slider(lv_obj_t *slider, lv_color_t color)
 {
     const ui_theme_t *t = ui_theme_get();
@@ -93,6 +96,7 @@ static void refresh_controls(void)
     lv_obj_set_style_text_color(s_status_label, t->text_muted, 0);
 }
 
+/* 下拉框回调：切换类别时刷新滑条数值 */
 static void dropdown_cb(lv_event_t *e)
 {
     (void)e;
@@ -100,6 +104,7 @@ static void dropdown_cb(lv_event_t *e)
     refresh_controls();
 }
 
+/* 置信度滑条回调：实时写入音频分类服务（持久化到 NVS） */
 static void threshold_cb(lv_event_t *e)
 {
     (void)e;
@@ -121,6 +126,8 @@ void ui_settings_refresh(void)
     refresh_controls();
 }
 
+/* 调参页：每个音频类别可单独调 置信度阈值 + 类别间距(Margin)，
+ * 是"阈值工程"的 UI 化体现——不用改代码就能调模型触发灵敏度。 */
 void ui_settings_create(lv_obj_t *scr)
 {
     s_scr = scr;

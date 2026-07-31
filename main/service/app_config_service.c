@@ -8,6 +8,17 @@
 
 static const char *TAG = "APP_CONFIG";
 
+/*
+ * 配置服务（NVS 持久化，面试点：掉电保存）
+ * ====================================================
+ * ESP-IDF 的 NVS(非易失存储)是一个 KV 数据库，按"命名空间"组织。
+ * 这里维护两个命名空间：
+ *  - audio_cfg：每个音频类别的阈值/间距（用户可在调参页修改）；
+ *  - app_cfg：设备设置（音量/马达/主题）。
+ * 用版本号做结构升级检测：版本变了就清空重建，防止旧数据错位。
+ * float 以千分比 int16 存储，避免浮点比较/精度问题。
+ */
+
 #define AUDIO_CFG_NS "audio_cfg"
 #define AUDIO_CFG_VERSION 2
 #define AUDIO_CFG_VERSION_KEY "ver"
@@ -16,6 +27,7 @@ static const char *TAG = "APP_CONFIG";
 #define APP_CFG_VERSION 1
 #define APP_CFG_VERSION_KEY "ver"
 
+/* 初始化标志：NVS flash 只初始化一次 */
 static bool s_initialized;
 
 static uint8_t clamp_percent(uint8_t value)
@@ -43,6 +55,7 @@ static float permille_to_float(int16_t value)
     return (float)value / 1000.0f;
 }
 
+/* 初始化 NVS：空间不足/版本变化时先擦除再初始化（ESP-IDF 标准流程） */
 esp_err_t app_config_init(void)
 {
     if (s_initialized) {
@@ -73,6 +86,7 @@ esp_err_t app_config_load_audio_tuning(float *thresholds, float *margins, size_t
         return ESP_ERR_INVALID_STATE;
     }
 
+    /* NVS 使用模式：open(命名空间) -> get/set -> commit -> close */
     nvs_handle_t handle;
     esp_err_t ret = nvs_open(AUDIO_CFG_NS, NVS_READWRITE, &handle);
     if (ret == ESP_ERR_NVS_NOT_FOUND) {
@@ -129,6 +143,7 @@ esp_err_t app_config_save_audio_class_tuning(int class_id, float threshold, floa
         return ESP_ERR_INVALID_STATE;
     }
 
+    /* NVS 使用模式：open(命名空间) -> get/set -> commit -> close */
     nvs_handle_t handle;
     esp_err_t ret = nvs_open(AUDIO_CFG_NS, NVS_READWRITE, &handle);
     if (ret != ESP_OK) {
@@ -184,6 +199,7 @@ esp_err_t app_config_load_device_settings(app_device_settings_t *settings)
 
     *settings = default_device_settings();
 
+    /* NVS 使用模式：open(命名空间) -> get/set -> commit -> close */
     nvs_handle_t handle;
     esp_err_t ret = nvs_open(APP_CFG_NS, NVS_READWRITE, &handle);
     if (ret != ESP_OK) {
@@ -230,6 +246,7 @@ esp_err_t app_config_load_device_settings(app_device_settings_t *settings)
 
 static esp_err_t save_u8_key(const char *key, uint8_t value)
 {
+    /* NVS 使用模式：open(命名空间) -> get/set -> commit -> close */
     nvs_handle_t handle;
     esp_err_t ret = open_app_cfg(NVS_READWRITE, &handle);
     if (ret != ESP_OK) {

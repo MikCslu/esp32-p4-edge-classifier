@@ -19,9 +19,11 @@
 #include "esp_log.h"
 
 static const char *TAG = "ES8311";
+/* esp_codec_dev 句柄：统一封装 codec 的 I2C 控制 + I2S 数据通道 */
 static esp_codec_dev_handle_t s_codec = NULL;
 static bool s_initialized = false;
 
+/* 初始化：I2C 总线 -> I2S 外设 -> codec 设备注册（输入/输出/全双工） */
 esp_err_t es8311_codec_init(es8311_dir_t dir)
 {
     if (s_initialized) {

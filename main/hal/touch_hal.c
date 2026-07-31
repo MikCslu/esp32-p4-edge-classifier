@@ -53,6 +53,7 @@ static esp_err_t tp_read(touch_point_t *points, uint8_t *count, uint8_t max_poin
     return ESP_OK;
 }
 
+/* 触摸 HAL：委托 GT911 驱动，把裸坐标统一成 touch_point_t */
 static const touch_hal_t hal = {
     .init = tp_init,
     .read = tp_read,

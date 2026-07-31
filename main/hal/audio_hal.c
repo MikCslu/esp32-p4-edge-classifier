@@ -86,6 +86,8 @@ static esp_err_t audio_deinit(void)
     return es8311_codec_deinit();
 }
 
+/* 统一音频 HAL：init/read/write/volume 接口，内部委托给 ES8311 驱动，
+ * 业务层（采集/播放任务）只依赖这个接口，不关心具体 codec。 */
 static const audio_hal_t hal = {
     .init = audio_init,
     .read = audio_read,

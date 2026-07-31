@@ -15,11 +15,23 @@
 
 static const char *TAG = "EMOTION";
 
+/*
+ * 表情引擎（LVGL 动画/定时器/相机预览的综合应用，面试重点）
+ * ====================================================
+ * 核心思想：用两个"眼睛"形状的 lv_obj 表达设备情绪。
+ *  - 场景表(scene)：每种音频/视觉类别对应一组 眼睛形状+背景色+文案；
+ *  - _morph_to()：用 lv_anim 把眼睛从当前形状"形变"到目标形状；
+ *  - 多个 lv_timer 驱动：眨眼、紧急脉冲、自动复位、相机预览；
+ *  - 相机预览：lv_timer 每 33ms 从 camera_service 拉一帧缩略图，
+ *    用 lv_image 显示在角落（只在这个页面开启，省 CPU）。
+ */
+
 /* Forward decl */
 static void _emotion_theme_refresh(void);
 
+/* 表情自动复位时间：4.5 秒无新事件就回到"Listening"待机态 */
 #define EMOTION_AUTO_CLEAR_MS    4500
-#define EMOTION_BLINK_MIN_MS     2400
+/* 眨眼间隔：2.4~4.2 秒随机，模拟自然的眨眼节奏 */
 #define EMOTION_BLINK_MAX_MS     4200
 #define EMOTION_BLINK_HOLD_MS    120
 #define MORPH_DURATION_MS        280
@@ -58,6 +70,7 @@ typedef struct {
     const char *title, *subtitle;
 } emotion_scene_t;
 
+/* 关键对象：根容器、左右眼、左右高光；其余是文案/提示条/相机面板 */
 static lv_obj_t *s_root, *s_eye_l, *s_eye_r, *s_hl_l, *s_hl_r;
 static lv_obj_t *s_title_label, *s_subtitle_label;
 static lv_obj_t *s_toasts[TOAST_COUNT], *s_toast_labels[TOAST_COUNT];
@@ -80,6 +93,9 @@ static int s_last_audio_class = -1;
 #define _C(r,g,b) LV_COLOR_MAKE(r,g,b)
 #define EYE(d,c) {d,d,d/2,0,_C c}
 
+/* ---------- 场景定义（深色主题）----------
+ * 每个场景 = 眼睛几何 + 颜色 + 情绪标签 + 标题文案。
+ * 数据驱动设计：新增情绪只需加一条场景表，无需改动画代码。 */
 static const emotion_scene_t s_idle_scene = {
     .eye_l = EYE(EYE_DIAMETER, (0x5a,0x82,0xb8)),
     .eye_r = EYE(EYE_DIAMETER, (0x5a,0x82,0xb8)),
@@ -224,6 +240,8 @@ static void _hl_pos(lv_obj_t *hl, int eye_cx, int eye_top, int eye_w, int eye_h)
     lv_obj_set_pos(hl, eye_cx + eye_w/2 - HL_SIZE - 8, ecy - eye_h/2 + 10);
 }
 
+/* 单只眼睛的形变动画：宽度/高度/Y/X 四个属性并行 lv_anim，
+ * 效果是"眼睛从旧形状平滑变成新形状"。 */
 static void _morph_eye(lv_obj_t *eye, int cx, const eye_shape_t *from, const eye_shape_t *to) {
     if (!eye) return;
     int by = EYE_CY - to->h / 2;
@@ -236,6 +254,8 @@ static void _morph_eye(lv_obj_t *eye, int cx, const eye_shape_t *from, const eye
     lv_obj_set_style_bg_color(eye, to->color, 0);
 }
 
+/* 切换到目标场景：同时动画两只眼睛 + 背景色渐变 + 更新文案。
+ * 这是整个表情引擎的"状态机跳转"入口。 */
 static void _morph_to(const emotion_scene_t *to) {
     if (!s_eye_l || !s_eye_r || !to) return;
     emotion_scene_t from = s_active_scene ? *s_active_scene : s_idle_scene;
@@ -250,6 +270,7 @@ static void _morph_to(const emotion_scene_t *to) {
 }
 
 static void _pulse_restore(void*o,int32_t v){lv_obj_set_style_bg_color((lv_obj_t*)o,lv_color_hex(v),0);}
+/* 紧急脉冲：定时器交替把背景色闪成强调色，制造"警报感" */
 static void _pulse_flash_cb(lv_timer_t *t) {
     static int c=0;
     if(!s_root||!s_active_scene){lv_timer_del(t);s_pulse_timer=NULL;return;}
@@ -268,8 +289,10 @@ static void _blink_cb(lv_timer_t *t){(void)t;if(!s_eye_l||!s_eye_r||s_blinking)r
     s_blinking=true;lv_obj_set_height(s_eye_l,8);lv_obj_set_height(s_eye_r,8);
     if(s_blink_restore_timer)lv_timer_del(s_blink_restore_timer);
     s_blink_restore_timer=lv_timer_create(_blink_restore_cb,EMOTION_BLINK_HOLD_MS,NULL);lv_timer_set_repeat_count(s_blink_restore_timer,1);}
+/* 重置眨眼定时器：随机间隔 + 只眨眼一次（眼睛压扁 120ms 后恢复） */
 static void _reset_blink_timer(void){if(s_blink_timer)lv_timer_del(s_blink_timer);int interval=EMOTION_BLINK_MIN_MS+(esp_random()%(EMOTION_BLINK_MAX_MS-EMOTION_BLINK_MIN_MS));s_blink_timer=lv_timer_create(_blink_cb,interval,NULL);}
 
+/* 自动复位回调：超时后把表情切回待机态（class_id=-1 表示无类别） */
 static void _clear_timer_cb(lv_timer_t *t){(void)t;s_clear_timer=NULL;ui_emotion_set_by_audio(-1,0.0f);}
 static void _restart_clear_timer(void){if(s_clear_timer){lv_timer_del(s_clear_timer);s_clear_timer=NULL;}s_clear_timer=lv_timer_create(_clear_timer_cb,EMOTION_AUTO_CLEAR_MS,NULL);lv_timer_set_repeat_count(s_clear_timer,1);}
 static void _cancel_clear_timer(void){if(s_clear_timer){lv_timer_del(s_clear_timer);s_clear_timer=NULL;}}
@@ -278,12 +301,15 @@ static void _animate_toast(lv_obj_t *t){if(!t)return;lv_anim_t a;lv_anim_init(&a
 static void _hide_toasts_cb(lv_timer_t *t){(void)t;s_toast_hide_timer=NULL;for(int i=0;i<TOAST_COUNT;i++){if(s_toasts[i]){s_toast_text[i][0]='\0';lv_obj_add_flag(s_toasts[i],LV_OBJ_FLAG_HIDDEN);lv_obj_set_style_opa(s_toasts[i],LV_OPA_TRANSP,0);}}}
 static void _restart_toast_hide_timer(void){if(s_toast_hide_timer){lv_timer_del(s_toast_hide_timer);s_toast_hide_timer=NULL;}s_toast_hide_timer=lv_timer_create(_hide_toasts_cb,TOAST_HIDE_MS,NULL);lv_timer_set_repeat_count(s_toast_hide_timer,1);}
 static void _push_toast_text(const char *text){if(!s_toasts[0]||!text)return;for(int i=TOAST_COUNT-1;i>0;i--)memcpy(s_toast_text[i],s_toast_text[i-1],sizeof(s_toast_text[i]));snprintf(s_toast_text[0],sizeof(s_toast_text[0]),"%s",text);for(int i=0;i<TOAST_COUNT;i++){if(s_toast_text[i][0]=='\0'){lv_obj_add_flag(s_toasts[i],LV_OBJ_FLAG_HIDDEN);continue;}lv_obj_clear_flag(s_toasts[i],LV_OBJ_FLAG_HIDDEN);lv_label_set_text(s_toast_labels[i],s_toast_text[i]);lv_obj_set_style_opa(s_toasts[i],i==0?LV_OPA_TRANSP:(lv_opa_t)(220-i*32),0);lv_color_t bg=i==0?lv_color_mix(s_active_scene?s_active_scene->accent:lv_color_hex(0x7dd3fc),lv_color_hex(0x080c14),140):lv_color_hex(0x141a24);lv_obj_set_style_bg_color(s_toasts[i],bg,0);if(i==0)_animate_toast(s_toasts[i]);}_restart_toast_hide_timer();}
+/* 把"非紧急"类别显示成顶部小提示条，而不是霸屏的表情变化 */
 static void _push_toast(int class_id, float confidence) {
     if (class_id < 0 || class_id == AUDIO_CLASS_BACKGROUND) return;
     char t[96]; snprintf(t, sizeof(t), "%s  %d%%", app_audio_class_title(class_id), (int)(confidence*100.0f+0.5f));
     _push_toast_text(t);
 }
 
+/* 相机预览定时器：约 30fps 从相机服务拉最新帧刷新 lv_image。
+ * 只在表情页开启；切走页面会 pause，省 CPU 和内存带宽。 */
 static void _camera_preview_timer_cb(lv_timer_t *t){(void)t;if(!s_camera_image)return;
     camera_preview_frame_t frame={0};if(camera_service_acquire_preview(s_camera_last_sequence,&frame)!=ESP_OK)return;
     memset(&s_camera_img_dsc,0,sizeof(s_camera_img_dsc));s_camera_img_dsc.header.w=frame.info.width;
@@ -338,6 +364,7 @@ static void _build_face(lv_obj_t *parent) {
     lv_obj_set_pos(s_subtitle_label, 0, LV_VER_RES - 30);
 }
 
+/* 创建表情页：眼睛、文案、提示条、相机面板，并启动各定时器 */
 void ui_emotion_create(lv_obj_t *parent) {
     s_root = parent;
     lv_obj_set_style_bg_color(parent, s_idle_scene.bg_color, 0);
@@ -421,6 +448,7 @@ void ui_emotion_set(emotion_t e) {
 
 emotion_t ui_emotion_get_current(void) { return s_current; }
 
+/* 音频分类驱动表情：紧急类别全屏变脸，非紧急只弹提示条 */
 void ui_emotion_set_by_audio(int class_id, float confidence) {
     s_last_audio_class = class_id; s_last_confidence = confidence;
     if (class_id < 0 || class_id == AUDIO_CLASS_BACKGROUND || confidence < 0.1f) {
@@ -439,6 +467,7 @@ void ui_emotion_set_by_audio(int class_id, float confidence) {
     _restart_clear_timer();
 }
 
+/* 视觉(人脸情绪)驱动表情：加置信度和人脸分双重门槛，防止误报 */
 void ui_emotion_set_by_visual(int emotion_id, float confidence, float face_score) {
     if (emotion_id < 0 || face_score < 0.70f || confidence < 0.45f) {
         return;
@@ -491,9 +520,11 @@ void ui_emotion_notify_system(bool is_error) {
     }
 }
 
+/* 暂停相机预览（页面切走时调用，释放渲染带宽） */
 void ui_emotion_pause_preview(void) {
     if (s_camera_preview_timer) { lv_timer_del(s_camera_preview_timer); s_camera_preview_timer = NULL; }
 }
+/* 恢复相机预览（页面切回时调用） */
 void ui_emotion_resume_preview(void) {
     if (!s_camera_preview_timer && s_root)
         s_camera_preview_timer = lv_timer_create(_camera_preview_timer_cb, CAMERA_PREVIEW_PULL_MS, NULL);

@@ -57,6 +57,7 @@ static esp_err_t mic_deinit(void)
     return es8311_codec_deinit();
 }
 
+/* 麦克风专用 HAL（只读）：采集任务实际用的是 audio_hal，此接口备用 */
 static const mic_hal_t hal = {
     .init = mic_init,
     .read = mic_read,

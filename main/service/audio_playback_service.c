@@ -11,6 +11,18 @@
 
 static const char *TAG = "AUDIO_PLAY";
 
+/*
+ * 音频播放服务（FreeRTOS 队列 + 阻塞播放任务，面试重点）
+ * ====================================================
+ * 设计动机：I2S 写播放是"慢操作"（几 KB 数据要排队发完），
+ * 不能阻塞调用方（UI 回调/告警逻辑），所以：
+ *  - 任意线程 submit() 只往队列投一个请求（音量/优先级/内容），立即返回；
+ *  - 播放任务阻塞在 xQueueReceive 上，按优先级取请求、逐块写 I2S。
+ * 还支持：优先级抢占（紧急音打断普通音）、音量缩放、停止标志。
+ * 输出状态 s_output_active 供 UI 任务判断"是不是自己在发声"，
+ * 避免麦克风采集到扬声器声音又触发分类（回声/自激）。
+ */
+
 #define AP_QUEUE_DEPTH     8
 #define AP_CHUNK_SAMPLES    256
 #define AP_SAMPLE_RATE      16000
@@ -21,8 +33,10 @@ static TaskHandle_t    s_task;
 static bool            s_running;
 static volatile bool   s_stop_flag;
 static volatile uint8_t s_current_prio;
+/* 是否正在输出：UI 任务用它抑制"自触发"（防止自己声音触发自己） */
 static volatile bool   s_output_active;
 static volatile int64_t s_output_tail_until_ms;
+/* 音量 0~100（由设置页/快捷面板调节，持久化到 NVS） */
 static uint8_t         s_volume = 50;
 static int16_t         s_buf[AP_CHUNK_SAMPLES];
 
@@ -43,6 +57,7 @@ static esp_err_t _write_silence(size_t samples)
     return ESP_OK;
 }
 
+/* 把一个数据块分片写入 I2S TX（I2S 写可能只写一部分，所以要循环） */
 static esp_err_t _write_block(const int16_t *data, size_t samples)
 {
     size_t remaining = samples;
@@ -122,6 +137,7 @@ static esp_err_t _write_block_scaled(const int16_t *data, size_t samples, uint8_
 
 /* ─── tone generator ─── */
 
+/* 生成正弦提示音（无音频文件也能响，用于告警） */
 static esp_err_t _play_tone(uint16_t freq, uint16_t dur_ms, uint8_t vol)
 {
     if (dur_ms == 0) {

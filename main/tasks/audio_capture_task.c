@@ -8,13 +8,28 @@
 #include <math.h>
 #include <stdint.h>
 
+/*
+ * 音频采集任务（FreeRTOS 生产者角色）
+ * ====================================================
+ * 数据流：ES8311 麦克风(I2S) -> 本任务 -> audio_frame_bus(环形缓冲) -> 推理任务
+ *
+ * 为什么优先级最高(10)且阻塞读？
+ *  - I2S DMA 收到的音频数据必须及时取走，否则新数据会覆盖旧数据；
+ *  - 阻塞在 audio HAL read 上时任务不占 CPU，等数据到了才被唤醒；
+ *  - 高优先级保证它总能抢在推理/UI 之前执行，是"实时链路"的第一环。
+ */
+
 static const char *TAG = "AUDIO_CAPTURE";
+/* 统计用：总线队列满导致丢帧的计数（用于排查性能瓶颈） */
 static uint32_t s_drop_count = 0;
 static uint32_t s_read_count = 0;
 
 static int16_t *alloc_audio_frame_buffer(void)
 {
     size_t size = AUDIO_FRAME_SAMPLES * sizeof(int16_t);
+    /* heap_caps_malloc 可指定内存类型：
+     * MALLOC_CAP_INTERNAL = 片内 SRAM（快但少，优先）；
+     * 失败再退回 PSRAM（大但慢，且需 8 位可访问）。 */
     int16_t *buffer = (int16_t *)heap_caps_malloc(size, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
     if (buffer) {
         ESP_LOGI(TAG, "Audio capture buffer allocated in internal RAM (%u bytes)", (unsigned)size);
@@ -29,6 +44,7 @@ void audio_capture_task(void *pvParameters)
 {
     esp_err_t ret;
 
+    /* 初始化音频 HAL（ES8311 编解码器）：16kHz、16bit、单声道、输入方向 */
     // 初始化音频 HAL
     audio_config_t cfg = {
         .sample_rate = AUDIO_SAMPLE_RATE_HZ,
@@ -37,6 +53,7 @@ void audio_capture_task(void *pvParameters)
         .dir = AUDIO_DIR_INPUT,
     };
 
+    /* 单例模式：所有 HAL 都通过 xxx_hal_get_instance() 获取 */
     ret = audio_hal_get_instance()->init(&cfg);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Audio HAL init failed");
@@ -44,6 +61,7 @@ void audio_capture_task(void *pvParameters)
         return;
     }
 
+    /* 分配一帧(1600 个 int16 = 100ms)的采集缓冲，尽量放片内 RAM 减少延迟 */
     // 创建队列
     int16_t *buffer = alloc_audio_frame_buffer();
     if (!buffer) {
@@ -54,10 +72,14 @@ void audio_capture_task(void *pvParameters)
 
     ESP_LOGI(TAG, "Audio capture task started");
 
+    /* 生产循环：阻塞读 -> 统计 -> 投递，永不退出 */
     while (1) {
+        /* 阻塞读一帧(100ms)：portMAX_DELAY = 无限等待。
+         * I2S 驱动内部有 DMA，这里等的是 DMA 缓冲满一个 frame。 */
         ret = audio_hal_get_instance()->read(buffer, AUDIO_FRAME_SAMPLES, portMAX_DELAY);
         if (ret == ESP_OK) {
             s_read_count++;
+            /* 每 50 帧(5 秒)打印一次 PCM 波形统计，便于调试麦克风是否正常 */
             if ((s_read_count % 50) == 0) {
                 int16_t min_sample = INT16_MAX;
                 int16_t max_sample = INT16_MIN;
@@ -86,6 +108,7 @@ void audio_capture_task(void *pvParameters)
                          AUDIO_FRAME_SAMPLES);
             }
 
+            /* 投递到帧总线；超时 10ms，满则丢帧计数（宁可丢也不能阻塞采集） */
             if (audio_frame_bus_post(buffer, 10) != ESP_OK) {
                 s_drop_count++;
                 if ((s_drop_count % 50) == 1) {
@@ -94,6 +117,6 @@ void audio_capture_task(void *pvParameters)
                 }
             }
         }
-        // 100ms 周期由 audio HAL read 阻塞控制
+        /* 循环节奏由上面的阻塞 read 控制：大约每 100ms 转一圈 */
     }
 }

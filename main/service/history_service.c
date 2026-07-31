@@ -6,6 +6,14 @@
 
 static const char *TAG = "HISTORY";
 
+/*
+ * 历史服务：把最近 N 条音频分类记录整体打包成一个 blob 存 NVS。
+ * 面试点：
+ *  - NVS 适合小 KV，大批量数据用"一个 blob 整体读写"比逐条 set 高效；
+ *  - 启动时读回 -> 回填内存统计，重启后 UI 数据不丢；
+ *  - 写入用 nvs_commit 确保落盘。
+ */
+
 #define HISTORY_NS "history"
 #define HISTORY_VERSION 1
 #define HISTORY_BLOB_KEY "audio"
@@ -16,6 +24,7 @@ typedef struct {
     history_record_t records[HISTORY_AUDIO_MAX];
 } history_store_t;
 
+/* 内存中的历史存储（含版本号，用于兼容检查） */
 static history_store_t s_store = {
     .version = HISTORY_VERSION,
 };
@@ -31,6 +40,7 @@ static uint8_t confidence_to_pct(float confidence)
     return (uint8_t)(confidence * 100.0f + 0.5f);
 }
 
+/* 整体写回 NVS（nvs_set_blob + commit） */
 static esp_err_t save_store(void)
 {
     nvs_handle_t handle;

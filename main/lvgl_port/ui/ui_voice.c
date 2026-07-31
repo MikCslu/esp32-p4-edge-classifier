@@ -18,7 +18,7 @@
 #define GAP      10
 #define GRID_COLS 4
 #define GRID_ROWS 3
-#define TAP_MOVE_LIMIT_PX 18
+#define TAP_MOVE_LIMIT_PX 18   /* 防误触：按下到抬起移动超过 18px 视为滑动，不算点击 */
 
 static lv_obj_t *s_scr;
 static lv_obj_t *s_title;
@@ -30,6 +30,7 @@ typedef struct {
     bool armed;
 } voice_btn_state_t;
 
+/* 每个语音按钮记录按下位置，用于区分"点击"和"滑动"（LVGL 手势防误触） */
 static voice_btn_state_t s_btn_state[12];
 
 static const struct {
@@ -51,6 +52,9 @@ static const struct {
 };
 #define PRESET_COUNT (sizeof(s_presets) / sizeof(s_presets[0]))
 
+/* 语音按钮回调：用 PRESSED/RELEASED 两段式判断真正点击，
+ * 避免用户在按钮上滑动时误触发语音。播放是异步的（speech_service_say
+ * 只投递请求到播放队列），UI 回调绝不做阻塞操作。 */
 static void _play_cb(lv_event_t *e)
 {
     size_t index = (size_t)(uintptr_t)lv_event_get_user_data(e);
@@ -82,6 +86,7 @@ static void _play_cb(lv_event_t *e)
         return;
     }
 
+    /* 异步播放：投递到 audio_playback_service 的队列，立即返回 */
     speech_service_say(s_presets[index].id, AUDIO_PLAY_PRIO_NORMAL);
 }
 
@@ -91,6 +96,7 @@ static void _stop_cb(lv_event_t *e)
     audio_playback_stop();
 }
 
+/* 音量滑条：拖动实时调音量，松手(RELEASED)才持久化到 NVS（减少 NVS 写入次数） */
 static void _vol_cb(lv_event_t *e)
 {
     lv_event_code_t code = lv_event_get_code(e);
@@ -174,6 +180,7 @@ void ui_voice_create(lv_obj_t *scr)
     lv_obj_add_event_cb(s_vol_slider, _vol_cb, LV_EVENT_VALUE_CHANGED, NULL);
     lv_obj_add_event_cb(s_vol_slider, _vol_cb, LV_EVENT_RELEASED, NULL);
 
+    /* 网格布局：12 个语音按钮按 4 列 x 3 行排布（按钮尺寸按屏幕动态计算） */
     int grid_top = TOP_H + PAGE_PAD;
     int grid_w = LV_HOR_RES - PAGE_PAD * 2;
     int grid_h = LV_VER_RES - grid_top - PAGE_PAD;

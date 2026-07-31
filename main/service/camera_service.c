@@ -19,6 +19,16 @@
 
 static const char *TAG = "CAMERA_SERVICE";
 
+/*
+ * 相机服务（多生产者/消费者缓冲管理，面试重点）
+ * ====================================================
+ * 数据流：SC2336 传感器(1024x600) -> 本任务 -> 两路输出：
+ *  - 预览路：160x94 缩略图，供 LVGL 表情页相机小窗显示；
+ *  - 视觉路：224x224 图（3 种裁剪轮流），供人脸检测模型推理。
+ * 用"写索引/就绪索引/持有索引"三态管理双缓冲，避免 UI 线程读一半被覆盖。
+ * 缩放不做逐像素双线性（太慢），而是预计算采样表做最近邻抽取。
+ */
+
 #define CAMERA_PREVIEW_BUFFERS   3
 #define CAMERA_VISION_BUFFERS    2
 #define CAMERA_VISION_DIVIDER    3
@@ -37,6 +47,7 @@ static uint16_t s_sample_x[CAMERA_PREVIEW_W];
 static uint32_t s_sample_row_offset[CAMERA_PREVIEW_H];
 static uint16_t s_vision_sample_x[CAMERA_VISION_CROP_COUNT][CAMERA_VISION_W];
 static uint32_t s_vision_sample_row_offset[CAMERA_VISION_CROP_COUNT][CAMERA_VISION_H];
+/* 双缓冲索引：writing(正在写) / ready(已完成) / held(UI 正在持有读) */
 static int s_writing_idx = -1;
 static int s_ready_idx = -1;
 static int s_held_idx = -1;
@@ -58,6 +69,7 @@ static uint32_t s_max_build_us;
 static uint32_t s_vision_last_build_us;
 static uint64_t s_build_sum_us;
 
+/* 预计算 1024x600 -> 160x94 的采样坐标表（运行时只查表） */
 static void init_preview_sampler(uint16_t src_w, uint16_t src_h)
 {
     for (uint16_t x = 0; x < CAMERA_PREVIEW_W; x++) {
@@ -157,6 +169,8 @@ static esp_err_t build_preview_ppa(const uint8_t *src,
 }
 #endif
 
+/* 相机任务主循环：取帧 -> 缩放出两路图 -> 更新就绪索引，
+ * 并用信号量通知等待预览的 UI 侧。 */
 static void camera_service_task(void *arg)
 {
     (void)arg;
@@ -393,6 +407,7 @@ TaskHandle_t camera_service_get_task_handle(void)
     return s_task;
 }
 
+/* UI 侧取预览帧：带序列号去重（同帧不重复拷贝），拿不到新帧返回超时 */
 esp_err_t camera_service_acquire_preview(uint32_t last_sequence,
                                          camera_preview_frame_t *frame)
 {
@@ -443,6 +458,7 @@ esp_err_t camera_service_copy_preview(uint8_t *dst,
     return ESP_OK;
 }
 
+/* 视觉侧取 224x224 推理帧（拷贝出双缓冲，避免推理期间被覆盖） */
 esp_err_t camera_service_copy_vision(uint8_t *dst,
                                      size_t dst_size,
                                      camera_preview_info_t *info)

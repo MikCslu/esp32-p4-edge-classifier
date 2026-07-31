@@ -12,6 +12,16 @@
 
 static const char *TAG = "ALERT_FB";
 
+/*
+ * 告警反馈服务（FreeRTOS 队列 + 独立任务，面试重点）
+ * ====================================================
+ * 设计动机：蜂鸣音/马达振动会"阻塞"（vTaskDelay 模拟 PWM 时长），
+ * 不能放在 UI 任务里执行，否则界面会卡住。所以：
+ *  - alert_feedback_trigger() 只往队列投一个事件，立即返回（异步）；
+ *  - 本任务阻塞在 xQueueReceive 上，拿到事件才按类别播放音/振。
+ * 另外用 s_last_trigger_us[] 做"每类最小间隔"冷却，防止连续触发刷屏。
+ */
+
 typedef struct {
     int class_id;
     float confidence;
@@ -23,18 +33,23 @@ typedef struct {
     uint8_t power;
 } motor_step_t;
 
+/* 告警事件队列（深度 4，见 task_config.h） */
 static QueueHandle_t s_queue;
 static TaskHandle_t s_task;
 static bool s_running;
 static bool s_motor_enabled = true;
 static uint8_t s_motor_strength = 75;
+/* 每类上次触发时间戳：用于类别级冷却（如玻璃破碎 3.6s 内不重复触发） */
 static int64_t s_last_trigger_us[APP_AUDIO_CLASS_COUNT];
 
+/* 毫秒睡眠：封装 vTaskDelay，便于控制"音/振节奏" */
 static void sleep_ms(uint32_t ms)
 {
     if (ms > 0) vTaskDelay(pdMS_TO_TICKS(ms));
 }
 
+/* 马达振动模式：按 力度->时长->间隔 的步骤序列驱动，
+ * 力度还会乘上用户设置的马达强度(s_motor_strength)。 */
 static void play_motor_pattern(const motor_step_t *steps, size_t count)
 {
     if (!s_motor_enabled || !motor_driver_is_available()) return;

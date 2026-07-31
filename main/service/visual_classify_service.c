@@ -20,6 +20,17 @@
 
 static const char *TAG = "VISUAL_CLS_SRV";
 
+/*
+ * 视觉分类服务（人脸检测 + 情绪识别，面试重点）
+ * ====================================================
+ * 两段式流水线：
+ *  1) 人脸检测：PicoDet 轻量检测模型(224x224)，输出人脸框；
+ *  2) 情绪分类：把裁剪出的人脸缩到 96x96，喂给情绪模型(7 类)。
+ * 模型以 .espdl 二进制内嵌在 flash（见 CMakeLists target_add_binary_data），
+ * 运行时通过链接器符号拿到地址。
+ * 独立任务每 2 秒处理一帧（VISUAL_PERIOD_MS），结果发事件队列。
+ */
+
 extern const uint8_t emotion_model_espdl_start[] asm("_binary_emotion_model_espdl_start");
 extern const uint8_t emotion_model_espdl_end[] asm("_binary_emotion_model_espdl_end");
 extern const uint8_t espdet_pico_224_224_face_espdl_start[] asm("_binary_espdet_pico_224_224_face_espdl_start");
@@ -43,6 +54,7 @@ typedef struct {
     float score;
 } visual_face_box_t;
 
+/* 7 类情绪名称（顺序与模型输出对齐） */
 static const char *s_emotion_names[VISUAL_EMOTION_CLASS_COUNT] = {
     "surprise",
     "fear",
@@ -58,6 +70,7 @@ static uint8_t *s_frame_buf;
 static uint8_t *s_face_rgb;
 static int8_t *s_emotion_input;
 static dl::TensorBase *s_emotion_tensor;
+/* ESP-DL 模型对象：人脸检测 + 情绪分类各一个 */
 static dl::Model *s_face_model;
 static dl::image::ImagePreprocessor *s_face_preprocessor;
 static dl::detect::ESPDetPostProcessor *s_face_postprocessor;
@@ -101,6 +114,8 @@ static inline void preview_pixel_to_rgb(const uint8_t *frame,
     *r = (uint8_t)((pixel & 0x1f) << 3);
 }
 
+/* 从整帧里按人脸框裁出方形区域并缩放到 96x96 RGB，
+ * 作为情绪模型的输入。手写双线性/最近邻缩放，避免依赖图形库。 */
 static void crop_face_to_rgb96(const uint8_t *frame,
                                int width,
                                int height,
@@ -158,6 +173,7 @@ static void crop_face_to_rgb96(const uint8_t *frame,
     }
 }
 
+/* 加载人脸检测模型：flatbuffer(fbs) + 预处理/后处理器 */
 static esp_err_t init_face_model(void)
 {
     if (s_face_model) {
@@ -195,6 +211,7 @@ static esp_err_t init_face_model(void)
     return ESP_OK;
 }
 
+/* 加载情绪分类模型 */
 static esp_err_t init_emotion_model(void)
 {
     if (s_emotion_model) {
@@ -277,6 +294,7 @@ static esp_err_t init_buffers(void)
     return ESP_OK;
 }
 
+/* 人脸检测：模型推理 + NMS 去重 + 置信度过滤，返回最佳人脸框 */
 static int detect_face(const uint8_t *preview,
                        const camera_preview_info_t *info,
                        visual_face_box_t *best_face,
@@ -327,6 +345,7 @@ static int detect_face(const uint8_t *preview,
     return faces;
 }
 
+/* 情绪推理：96x96 人脸图 -> 7 类概率 -> 取最大类 + 置信度 */
 static esp_err_t run_emotion(const uint8_t *rgb96,
                              int *emotion_id,
                              float *confidence,
@@ -446,6 +465,8 @@ static esp_err_t init_visual_pipeline(void)
     return ESP_OK;
 }
 
+/* 视觉推理任务：周期取相机帧 -> 检测人脸 -> 分类情绪 -> 发事件。
+ * 事件带最小间隔过滤(VISUAL_EVENT_MIN_INTERVAL_MS)，避免刷屏。 */
 static void visual_cls_task(void *arg)
 {
     (void)arg;

@@ -85,6 +85,7 @@ bool max98357_speaker_is_available(void)
     return s_available;
 }
 
+/* 导出 I2S TX 句柄：音频播放服务直接写它发数据（绕开 codec） */
 i2s_chan_handle_t max98357_get_tx_handle(void)
 {
     return s_tx_chan;

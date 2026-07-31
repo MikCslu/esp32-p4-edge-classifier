@@ -13,11 +13,23 @@
 
 static const char *TAG = "TELEMETRY";
 
+/*
+ * 遥测服务（周期性监控任务，面试价值：调试手段）
+ * ====================================================
+ * 最低优先级(1)任务，每 10 秒醒一次：
+ *  - 堆统计：片内 SRAM / PSRAM 剩余与历史最低值（抓内存泄漏）；
+ *  - 音频总线统计：信号量计数/合并次数/投递失败（抓瓶颈）；
+ *  - 各服务统计：处理速率、耗时、错误数；
+ *  - 注册进来的任务句柄可进一步做栈高水位监控(uxTaskGetStackHighWaterMark)。
+ * 全部走 ESP_LOGI 输出，不影响业务，可在发布版关闭。
+ */
+
 typedef struct {
     const char *name;
     TaskHandle_t handle;
 } telemetry_task_entry_t;
 
+/* 注册表：记录要监控的任务名 + 句柄 */
 static telemetry_task_entry_t s_tasks[TELEMETRY_MAX_TASKS];
 static uint8_t s_task_count;
 static TaskHandle_t s_telemetry_task;
@@ -55,7 +67,9 @@ static void telemetry_task(void *arg)
     camera_service_get_stats(&initial_camera);
     last_camera_frames = initial_camera.frames;
 
+    /* 循环：睡 10 秒 -> 采样 -> 打印 -> 再睡 */
     while (true) {
+        /* vTaskDelay 是相对延时：让出 CPU 指定 tick 数 */
         vTaskDelay(pdMS_TO_TICKS(TELEMETRY_PERIOD_MS));
 
         int64_t now_us = esp_timer_get_time();
@@ -66,6 +80,7 @@ static void telemetry_task(void *arg)
         last_log_us = now_us;
         log_count++;
 
+        /* heap_caps API 可按内存类型分别统计 */
         size_t internal_free = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
         size_t internal_min = heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL);
         size_t psram_free = heap_caps_get_free_size(MALLOC_CAP_SPIRAM);

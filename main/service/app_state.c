@@ -2,6 +2,13 @@
 
 #include <string.h>
 
+/*
+ * 应用状态服务：所有 UI 数据的"单一数据源"。
+ * 音频/视觉结果由任务层写入，UI 页面只读，天然解耦。
+ * 数据都在内存中（无锁），因为写者只有 UI 任务一个上下文。
+ */
+
+/* 12 类音频的英文标识（模型输出）和 UI 显示标题 */
 static const char *s_class_names[APP_AUDIO_CLASS_COUNT] = {
     "alarm",
     "car_horn",
@@ -32,9 +39,11 @@ static const char *s_class_titles[APP_AUDIO_CLASS_COUNT] = {
     "Background",
 };
 
+/* 音频统计：总数/每类计数/平均置信度/最近记录 */
 static app_audio_stats_t s_audio_stats = {
     .last_class_id = -1,
 };
+/* 视觉统计：人脸次数/情绪分布/最近结果 */
 static app_visual_stats_t s_visual_stats = {
     .last_result = {
         .emotion_id = -1,

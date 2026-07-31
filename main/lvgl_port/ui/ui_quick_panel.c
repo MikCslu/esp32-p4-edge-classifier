@@ -11,9 +11,10 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#define PANEL_H 430
-#define PAD 18
+#define PANEL_H 430   /* 面板高度：覆盖屏幕下半部分 */
+#define PAD 18          /* 面板内边距 */
 
+/* 面板对象：s_overlay 是半透明遮罩层，s_panel 是其中的控制卡片 */
 static lv_obj_t *s_overlay;
 static lv_obj_t *s_panel;
 static lv_obj_t *s_motor_switch;
@@ -71,11 +72,14 @@ static void reset_panel_refs(void)
     s_theme_label = NULL;
 }
 
+/* 销毁面板：async=true 用 lv_obj_delete_async（延迟到渲染循环空闲时删除，
+ * 避免在事件回调里直接删除对象导致悬空指针）。 */
 static void destroy_panel(bool async)
 {
     lv_obj_t *old = s_overlay;
     reset_panel_refs();
     if (old) {
+        /* lv_obj_delete_async：安全异步删除（LVGL 常见陷阱之一） */
         if (async) {
             lv_obj_delete_async(old);
         } else {
@@ -128,6 +132,7 @@ static lv_obj_t *make_action_btn(lv_obj_t *parent, const char *text, int x, int 
     return btn;
 }
 
+/* 打开面板时把当前设置同步到控件（开关/滑条/标签） */
 static void sync_values(void)
 {
     if (s_motor_switch) {
@@ -211,6 +216,7 @@ static void stop_audio_cb(lv_event_t *e)
     audio_playback_stop();
 }
 
+/* 创建面板：遮罩 + 卡片 + 各控件（开关/滑条/按钮） */
 static void create_panel(void)
 {
     const ui_theme_t *t = ui_theme_get();
@@ -291,6 +297,7 @@ static void create_panel(void)
     sync_values();
 }
 
+/* 显示快捷面板：若已存在则直接更新值并移到前台 */
 void ui_quick_panel_show(void)
 {
     pause_emotion_preview_if_needed();
@@ -313,6 +320,7 @@ void ui_quick_panel_close_now(void)
     destroy_panel(false);
 }
 
+/* 判断面板是否打开（供 UI 任务在收到新事件时先关闭它） */
 bool ui_quick_panel_is_open(void)
 {
     return s_overlay && !lv_obj_has_flag(s_overlay, LV_OBJ_FLAG_HIDDEN);
